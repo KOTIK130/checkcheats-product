@@ -123,7 +123,6 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   const { rows: users } = await pool.query('SELECT * FROM users WHERE id = $1', [req.session.user.id])
   const user = users[0]
 
-  // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
   if (!user) {
     req.session = null;
     return res.redirect('/login');
@@ -166,6 +165,26 @@ app.post('/hwid/reset', requireAuth, async (req, res) => {
   const { rows } = await pool.query('SELECT id FROM licenses WHERE userId = $1 AND status = $2', [req.session.user.id, 'active'])
   if (rows[0]) await pool.query('UPDATE devices SET hwid = NULL WHERE licenseId = $1', [rows[0].id])
   res.redirect('/dashboard')
+})
+
+// НОВЫЕ МАРШРУТЫ ДЛЯ СМЕНЫ ПАРОЛЯ
+app.get('/change-password', requireAuth, (req, res) => {
+  res.render('change-password', { title: 'Смена пароля', msg: null })
+})
+
+app.post('/change-password', requireAuth, async (req, res) => {
+  const { oldPassword, newPassword } = req.body
+  if (!oldPassword || !newPassword || newPassword.length < 6) {
+    return res.render('change-password', { title: 'Смена пароля', msg: 'Неверные данные' })
+  }
+  const { rows } = await pool.query('SELECT passwordhash FROM users WHERE id = $1', [req.session.user.id])
+  const user = rows[0]
+  if (!bcrypt.compareSync(oldPassword, user.passwordhash)) {
+    return res.render('change-password', { title: 'Смена пароля', msg: 'Старый пароль неверный' })
+  }
+  const newHash = bcrypt.hashSync(newPassword, 10)
+  await pool.query('UPDATE users SET passwordhash = $1 WHERE id = $2', [newHash, req.session.user.id])
+  res.render('change-password', { title: 'Смена пароля', msg: 'Пароль успешно изменён!' })
 })
 
 // ====== API для бота ======
