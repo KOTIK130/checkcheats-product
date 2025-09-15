@@ -1,0 +1,30 @@
+<h1>Админ-панель</h1>
+<div class="card" style="max-width: 1000px; margin: 0 auto; display: grid; gap: 20px;">
+  <div>
+    <h2>Поиск пользователя по UID</h2>
+    <form method="post" action="/admin/find-user" style="display: flex; gap: 10px;">
+      <input class="input" name="uid" placeholder="UID" required>
+      <button class="btn" type="submit">Найти</button>
+    </form>
+    <% if (locals.user && user) { %>
+      <div style="margin-top: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;">
+        <p><strong>UID:</strong> <%= user.uid %></p>
+        <p><strong>Логин:</strong> <%= user.username %></p>
+        <p><strong>Email:</strong> <%= user.email %></p>
+        <p><strong>Роль:</strong> <%= user.role %></p>
+        <p><strong>Дата рег.:</strong> <%= user.createdAt %></p>
+      </div>
+    <% } %>
+  </div>
+  <hr class="sep">
+  <div>
+    <h2>Создать ключ</h2>
+    <form method="post" action="/admin/create-key" style="display: flex; gap: 10px; align-items: center;">
+      <input class="input" name="days" placeholder="Срок (дней)" value="30" type="number">
+      <input class="input" name="maxDevices" placeholder="Устройств" value="1" type="number">
+      <input class="input" name="plan" placeholder="План" value="CUSTOM">
+      <button class="btn" type="submit">Создать</button>
+    </form>
+  </div>
+  <% if (msg) { %><div class="alert"><%= msg %></div><% } %>
+</div>
