@@ -1,0 +1,35 @@
+<% layout('layout', { title: 'Личный кабинет' }) %>
+<h1>Личный кабинет</h1>
+<div class="card" style="max-width:1000px; margin:0 auto; display:grid; gap:10px;">
+  <div class="row"><div class="label">UID</div><div class="value"><%= user.uid %></div><div></div></div>
+  <div class="row"><div class="label">Логин</div><div class="value"><%= user.username %></div><div></div></div>
+  <div class="row"><div class="label">Группа</div><div class="value"><%= user.role === 'admin' ? 'Админ' : 'Пользователь' %></div><div></div></div>
+  <div class="row"><div class="label">Дата регистрации</div><div class="value"><%= user.createdAt %></div><div></div></div>
+  <div class="row"><div class="label">E-mail</div><div class="value"><%= user.email %></div><div></div></div>
+
+  <div class="row">
+    <div class="label">HWID</div>
+    <div class="value"><%= hwid || 'не привязан' %></div>
+    <div>
+      <% if (hwid) { %>
+      <form method="post" action="/hwid/reset"><button class="btn" type="submit">Сбросить</button></form>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="row"><div class="label">Клиент куплен до</div><div class="value"><%= expiresAt || '—' %></div><div></div></div>
+
+  <div class="row">
+    <div class="label">Активация ключа</div>
+    <form method="post" action="/key/activate" style="display:flex; gap:10px; width:100%;">
+      <input class="input" name="key" placeholder="Введите ключ" required style="flex:1;">
+      <button class="btn" type="submit">Активировать</button>
+    </form>
+  </div>
+
+  <% if (canDownload) { %>
+  <div class="right"><a class="btn" href="<%= downloadUrl %>">Скачать программу</a></div>
+  <% } %>
+
+  <% if (msg) { %><div class="alert"><%= msg %></div><% } %>
+</div>
