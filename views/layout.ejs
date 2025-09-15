@@ -5,23 +5,28 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title><%= title %></title>
   <link rel="stylesheet" href="/styles.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
   <div class="container">
-    <div class="nav">
-      <a href="/">Главная</a>
+    <header class="nav">
+      <a href="/" class="nav-brand">CheckCheats</a>
       <a href="/products">Продукты</a>
       <% if (user) { %>
         <a href="/dashboard">Личный кабинет</a>
         <form method="post" action="/logout" style="margin-left:auto">
-          <button class="btn" type="submit">Выйти</button>
+          <button class="btn btn-secondary" type="submit">Выйти</button>
         </form>
       <% } else { %>
-        <a href="/login" style="margin-left:auto">Войти</a>
-        <a href="/register">Регистрация</a>
+        <div style="margin-left:auto; display:flex; gap:12px;">
+          <a href="/login" class="btn btn-secondary">Войти</a>
+          <a href="/register" class="btn">Регистрация</a>
+        </div>
       <% } %>
-    </div>
-    <%- body %>
+    </header>
+    <main style="padding-top: 40px;">
+      <%- body %>
+    </main>
   </div>
 </body>
 </html>
