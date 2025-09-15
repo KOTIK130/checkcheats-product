@@ -2,18 +2,14 @@
   "name": "cc-mini",
   "version": "1.0.0",
   "type": "module",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "scripts": { "start": "node server.js" },
   "dependencies": {
-    "axios": "^1.7.2",
     "bcryptjs": "^2.4.3",
     "cookie-session": "^2.0.0",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
     "express": "^4.19.2",
-    "express-rate-limit": "^7.2.0",
-    "better-sqlite3": "^9.4.3",
-    "telegraf": "^4.16.3"
+    "express-ejs-layouts": "^2.5.1",
+    "better-sqlite3": "^9.4.3"
   }
 }
