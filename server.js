@@ -122,6 +122,13 @@ function requireAdmin(req, res, next) { if (req.session.user?.role !== 'admin') 
 app.get('/dashboard', requireAuth, async (req, res) => {
   const { rows: users } = await pool.query('SELECT * FROM users WHERE id = $1', [req.session.user.id])
   const user = users[0]
+
+  // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+  if (!user) {
+    req.session = null;
+    return res.redirect('/login');
+  }
+
   const { rows: lics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [user.id, 'active'])
   const lic = lics[0]
 
@@ -181,7 +188,7 @@ app.post('/api/bot/new-key', async (req, res) => {
   }
 })
 
-// ====== Админ-панель (НОВЫЙ БЛОК) ======
+// ====== Админ-панель ======
 app.get('/admin', requireAuth, requireAdmin, (req, res) => {
   res.render('admin', { title: 'Админка', user: null, msg: null })
 })
