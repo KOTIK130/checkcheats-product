@@ -1,282 +1,208 @@
+// server.js
 import 'dotenv/config'
 import express from 'express'
 import path from 'path'
-import fs from 'fs'
 import cookieSession from 'cookie-session'
 import bcrypt from 'bcryptjs'
-import Database from 'better-sqlite3'
+import pg from 'pg'
 import ejsLayouts from 'express-ejs-layouts'
 
+const { Pool } = pg
 const app = express()
 const __dirname = path.resolve()
 
-// ====== БД (SQLite) ======
-const dataDir =
-  process.env.DATA_DIR || (process.env.RENDER ? '/tmp/cc-data' : path.join(__dirname, 'data'))
-fs.mkdirSync(dataDir, { recursive: true })
-const dbPath = path.join(dataDir, 'data.db')
-const db = new Database(dbPath)
-db.pragma('journal_mode = WAL')
+// ====== БД (PostgreSQL) ======
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL
+})
 
-// Таблицы (создадутся при первом старте)
-db.exec(`
-create table if not exists users (
-  id integer primary key autoincrement,
-  email text unique not null,
-  username text unique not null,
-  passwordHash text not null,
-  role text not null default 'user',
-  createdAt integer not null
-);
-create table if not exists licenses (
-  id integer primary key autoincrement,
-  key text unique not null,
-  plan text not null,
-  status text not null default 'unbound', -- unbound/active/blocked/expired
-  maxDevices integer not null default 1,
-  expiresAt integer not null,
-  userId integer references users(id)
-);
-create table if not exists devices (
-  id integer primary key autoincrement,
-  licenseId integer not null references licenses(id),
-  hwid text,
-  firstSeenAt integer not null,
-  lastSeenAt integer not null,
-  status text not null default 'active',
-  unique (licenseId, hwid)
-);
-create table if not exists payments (
-  id integer primary key autoincrement,
-  provider text not null,            -- cryptobot
-  providerId text unique not null,   -- invoice_id
-  status text not null,              -- pending/paid/failed
-  amount integer not null,           -- в центах/копейках (или просто число)
-  currency text not null,            -- USDT
-  telegramId text,
-  createdAt integer not null,
-  userId integer,
-  licenseKey text
-);
-`)
+// Создаём таблицы, если их нет
+async function setupDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      uid SERIAL UNIQUE,
+      email TEXT UNIQUE NOT NULL,
+      username TEXT UNIQUE NOT NULL,
+      passwordHash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user',
+      createdAt TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS licenses (
+      id SERIAL PRIMARY KEY,
+      key TEXT UNIQUE NOT NULL,
+      plan TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'unbound',
+      maxDevices INT NOT NULL DEFAULT 1,
+      expiresAt TIMESTAMPTZ NOT NULL,
+      userId INT REFERENCES users(id)
+    );
+    CREATE TABLE IF NOT EXISTS devices (
+      id SERIAL PRIMARY KEY,
+      licenseId INT NOT NULL REFERENCES licenses(id),
+      hwid TEXT,
+      firstSeenAt TIMESTAMPTZ DEFAULT NOW(),
+      lastSeenAt TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (licenseId, hwid)
+    );
+    CREATE TABLE IF NOT EXISTS payments (
+      id SERIAL PRIMARY KEY,
+      provider TEXT NOT NULL,
+      providerId TEXT UNIQUE NOT NULL,
+      status TEXT NOT NULL,
+      amount INT NOT NULL,
+      currency TEXT NOT NULL,
+      telegramId TEXT,
+      createdAt TIMESTAMPTZ DEFAULT NOW(),
+      userId INT,
+      licenseKey TEXT
+    );
+  `)
+}
+setupDb().catch(console.error)
 
 // ====== Middleware и шаблоны ======
 app.use(express.urlencoded({ extended: true }))
 app.use(express.json())
 app.use(express.static(path.join(__dirname, 'public')))
-
 app.set('views', path.join(__dirname, 'views'))
 app.set('view engine', 'ejs')
 app.use(ejsLayouts)
 app.set('layout', 'layout')
 
-app.use(
-  cookieSession({
-    name: 'ccsess',
-    keys: [process.env.SESSION_SECRET || 'devsecret'],
-    maxAge: 30 * 24 * 3600 * 1000
-  })
-)
-app.use((req, res, next) => {
-  res.locals.user = req.session.user || null
-  next()
-})
+app.use(cookieSession({ name:'ccsess', keys:[process.env.SESSION_SECRET||'dev'], maxAge:30*24*3600*1000 }))
+app.use((req, res, next) => { res.locals.user = req.session.user || null; next() })
 
-// ====== Helpers / Prepared ======
-const now = () => Date.now()
-const q = {
-  userByEmail: db.prepare('select * from users where email=?'),
-  userById: db.prepare('select * from users where id=?'),
-  createUser: db.prepare('insert into users (email,username,passwordHash,createdAt) values (?,?,?,?)'),
-
-  // Берём только активную лицензию пользователя (исправлено: строковый литерал 'active')
-  userActiveLic: db.prepare(
-    'select * from licenses where userId=? and status=? order by expiresAt desc limit 1'
-  ),
-
-  licDevices: db.prepare('select * from devices where licenseId=? order by id asc'),
-
-  licByKey: db.prepare('select * from licenses where key=?'),
-  createLic: db.prepare(
-    'insert into licenses (key,plan,status,maxDevices,expiresAt) values (?,?,?,?,?)'
-  ),
-  // update с литералом 'active' корректен (в SQL строковые значение в одинарных кавычках)
-  bindLic: db.prepare('update licenses set userId=?, status=\'active\' where id=?'),
-
-  resetHwid: db.prepare('update devices set hwid=null where licenseId=?'),
-  addDevice: db.prepare(
-    'insert into devices (licenseId, hwid, firstSeenAt, lastSeenAt) values (?,?,?,?)'
-  ),
-
-  createPay: db.prepare(
-    'insert into payments (provider,providerId,status,amount,currency,telegramId,createdAt,licenseKey) values (?,?,?,?,?,?,?,?)'
-  )
-}
+// ====== Helpers ======
+const toLocale = (d) => d ? new Date(d).toLocaleString() : ''
 
 // ====== Routes ======
 app.get('/', (req, res) => res.render('index', { title: 'Главная' }))
-
 app.get('/products', (req, res) => {
-  const price =
-    process.env.PRODUCT_PRICE_USDT || process.env.NEXT_PUBLIC_PRICE_USDT || '15'
-  const botName = (process.env.TG_BOT_USERNAME || 'YourBotUsername').replace(/^@/, '')
-  res.render('products', { title: 'Продукты', price, botName })
+  res.render('products', {
+    title: 'Продукты',
+    price: process.env.PRODUCT_PRICE_USDT || '1',
+    botName: (process.env.TG_BOT_USERNAME || 'checkcheatsbuy_bot').replace(/^@/, '')
+  })
 })
 
 app.get('/login', (req, res) => res.render('login', { title: 'Вход', error: null }))
-app.post('/login', (req, res) => {
-  const email = String(req.body.email || '').toLowerCase()
-  const pass = String(req.body.password || '')
-  const u = q.userByEmail.get(email)
-  if (!u || !bcrypt.compareSync(pass, u.passwordHash)) {
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body
+  const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [String(email).toLowerCase()])
+  const user = rows[0]
+  if (!user || !bcrypt.compareSync(password, user.passwordhash)) {
     return res.render('login', { title: 'Вход', error: 'Неверные данные' })
   }
-  req.session.user = { id: u.id, email: u.email, username: u.username, role: u.role }
+  req.session.user = { id: user.id, email: user.email, username: user.username, role: user.role }
   res.redirect('/dashboard')
 })
+app.post('/logout', (req, res) => { req.session = null; res.redirect('/') })
 
-app.post('/logout', (req, res) => {
-  req.session = null
-  res.redirect('/')
-})
-
-app.get('/register', (req, res) =>
-  res.render('register', { title: 'Регистрация', error: null })
-)
-app.post('/register', (req, res) => {
+app.get('/register', (req, res) => res.render('register', { title: 'Регистрация', error: null }))
+app.post('/register', async (req, res) => {
   const { email, username, password } = req.body
-  if (!email || !username || !password || password.length < 6) {
+  if (!email || !username || !password || password.length < 6)
     return res.render('register', { title: 'Регистрация', error: 'Неверные данные' })
-  }
-  if (q.userByEmail.get(String(email).toLowerCase())) {
-    return res.render('register', { title: 'Регистрация', error: 'Email занят' })
-  }
+  
+  const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1 OR username = $2', [String(email).toLowerCase(), username])
+  if (existing.length > 0)
+    return res.render('register', { title: 'Регистрация', error: 'Email или логин занят' })
+  
   const hash = bcrypt.hashSync(password, 10)
-  const info = q.createUser.run(String(email).toLowerCase(), String(username), hash, now())
-  req.session.user = { id: info.lastInsertRowid, email, username, role: 'user' }
+  const { rows: newUser } = await pool.query('INSERT INTO users (email, username, passwordHash) VALUES ($1, $2, $3) RETURNING id, role', [String(email).toLowerCase(), username, hash])
+  req.session.user = { id: newUser[0].id, email, username, role: newUser[0].role }
   res.redirect('/dashboard')
 })
 
-function requireAuth(req, res, next) {
-  if (!req.session.user) return res.redirect('/login')
-  next()
-}
+// Middleware для проверки авторизации и роли админа
+function requireAuth(req, res, next) { if (!req.session.user) return res.redirect('/login'); next() }
+function requireAdmin(req, res, next) { if (req.session.user?.role !== 'admin') return res.status(403).send('Доступ запрещён'); next() }
 
-app.get('/dashboard', requireAuth, (req, res) => {
-  const u = q.userById.get(req.session.user.id)
-  // берём активную лицензию (параметр 'active' передаём как строку)
-  const lic = q.userActiveLic.get(u.id, 'active')
+app.get('/dashboard', requireAuth, async (req, res) => {
+  const { rows: users } = await pool.query('SELECT * FROM users WHERE id = $1', [req.session.user.id])
+  const user = users[0]
+  const { rows: lics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [user.id, 'active'])
+  const lic = lics[0]
 
-  let hwid = ''
-  let expiresAt = ''
-  let canDownload = false
-
+  let hwid = '', expiresAt = '', canDownload = false
   if (lic) {
-    const d = q.licDevices.get(lic.id)
-    hwid = d?.hwid || ''
-    if (lic.expiresAt) {
-      expiresAt = new Date(lic.expiresAt).toLocaleString()
-      canDownload = true // раз лицензия активна, можно отдавать загрузку (и дата в будущем)
-      if (lic.expiresAt <= now()) canDownload = false
-    }
+    const { rows: devices } = await pool.query('SELECT * FROM devices WHERE licenseId = $1', [lic.id])
+    hwid = devices[0]?.hwid || ''
+    expiresAt = toLocale(lic.expiresat)
+    canDownload = lic.expiresat > new Date()
   }
 
   res.render('dashboard', {
     title: 'Кабинет',
-    user: {
-      uid: u.id,
-      username: u.username,
-      role: u.role,
-      email: u.email,
-      createdAt: new Date(u.createdAt).toLocaleString()
-    },
-    hwid,
-    expiresAt,
-    canDownload,
-    downloadUrl: process.env.DOWNLOAD_URL || '#',
-    msg: null
+    user: { ...user, createdAt: toLocale(user.createdat) },
+    hwid, expiresAt, canDownload,
+    downloadUrl: process.env.DOWNLOAD_URL || '#', msg: null
   })
 })
 
-app.post('/key/activate', requireAuth, (req, res) => {
+app.post('/key/activate', requireAuth, async (req, res) => {
   const key = String(req.body.key || '').trim().toUpperCase()
-  const lic = q.licByKey.get(key)
-  if (!lic) {
-    return res.render('dashboard', {
-      title: 'Кабинет',
-      msg: 'Ключ не найден',
-      user: req.session.user
-    })
-  }
-  if (lic.userId && lic.userId !== req.session.user.id) {
-    return res.render('dashboard', {
-      title: 'Кабинет',
-      msg: 'Ключ уже использован',
-      user: req.session.user
-    })
-  }
-  if (lic.status === 'blocked') {
-    return res.render('dashboard', {
-      title: 'Кабинет',
-      msg: 'Ключ заблокирован',
-      user: req.session.user
-    })
-  }
-  q.bindLic.run(req.session.user.id, lic.id)
-  const devs = q.licDevices.all(lic.id)
-  if (devs.length === 0) q.addDevice.run(lic.id, null, now(), now())
+  const { rows } = await pool.query('SELECT * FROM licenses WHERE key = $1', [key])
+  const lic = rows[0]
+  if (!lic) return res.render('dashboard', { title: 'Кабинет', msg: 'Ключ не найден', user: req.session.user })
+  if (lic.userid && lic.userid !== req.session.user.id) return res.render('dashboard', { title: 'Кабинет', msg: 'Ключ уже использован', user: req.session.user })
+  if (lic.status === 'blocked') return res.render('dashboard', { title: 'Кабинет', msg: 'Ключ заблокирован', user: req.session.user })
+  
+  await pool.query('UPDATE licenses SET userId = $1, status = $2 WHERE id = $3', [req.session.user.id, 'active', lic.id])
+  const { rows: devices } = await pool.query('SELECT id FROM devices WHERE licenseId = $1', [lic.id])
+  if (devices.length === 0) await pool.query('INSERT INTO devices (licenseId) VALUES ($1)', [lic.id])
   res.redirect('/dashboard')
 })
 
-app.post('/hwid/reset', requireAuth, (req, res) => {
-  // сбрасываем HWID только на активной лицензии
-  const lic = q.userActiveLic.get(req.session.user.id, 'active')
-  if (lic) q.resetHwid.run(lic.id)
+app.post('/hwid/reset', requireAuth, async (req, res) => {
+  const { rows } = await pool.query('SELECT id FROM licenses WHERE userId = $1 AND status = $2', [req.session.user.id, 'active'])
+  if (rows[0]) await pool.query('UPDATE devices SET hwid = NULL WHERE licenseId = $1', [rows[0].id])
   res.redirect('/dashboard')
 })
 
-// ====== API для бота (регистрация ключа после оплаты) ======
-// Бот делает POST c заголовком X-API-Key: BOT_WEBHOOK_SECRET
-app.post('/api/bot/new-key', (req, res) => {
+// ====== API для бота ======
+app.post('/api/bot/new-key', async (req, res) => {
   const secret = req.headers['x-api-key'] || req.body?.secret
-  if ((secret || '') !== (process.env.BOT_WEBHOOK_SECRET || '')) {
+  if ((secret || '') !== (process.env.BOT_WEBHOOK_SECRET || ''))
     return res.status(401).json({ error: 'unauthorized' })
-  }
-  const {
-    key,
-    plan = 'STARTER',
-    expiresAt,
-    maxDevices = 1,
-    invoiceId,
-    amount = 0,
-    currency = 'USDT',
-    telegramId
-  } = req.body || {}
-
-  if (!key || !expiresAt || !invoiceId) {
-    return res.status(400).json({ error: 'bad_request' })
-  }
+  
+  const { key, plan = 'STARTER', expiresAt, maxDevices = 1, invoiceId, amount = 0, currency = 'USDT', telegramId } = req.body || {}
+  if (!key || !expiresAt || !invoiceId) return res.status(400).json({ error: 'bad_request' })
+  
   try {
-    q.createLic.run(String(key).toUpperCase(), plan, 'unbound', Number(maxDevices), Number(expiresAt))
-    q.createPay.run(
-      'cryptobot',
-      String(invoiceId),
-      'paid',
-      Number(amount),
-      currency,
-      String(telegramId || ''),
-      now(),
-      String(key).toUpperCase()
-    )
+    const expires = new Date(Number(expiresAt))
+    await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices) VALUES ($1, $2, $3, $4)', [String(key).toUpperCase(), plan, expires, Number(maxDevices)])
+    await pool.query('INSERT INTO payments (provider, providerId, status, amount, currency, telegramId, licenseKey) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      ['cryptobot', String(invoiceId), 'paid', Number(amount), currency, String(telegramId || ''), String(key).toUpperCase()])
     return res.json({ ok: true })
   } catch (e) {
     return res.status(409).json({ error: 'exists' })
   }
 })
 
-// ====== Start ======
-const PORT = process.env.PORT || 3000
-app.listen(PORT, () => {
-  console.log('Site on', PORT)
-  console.log('DB path:', dbPath)
+// ====== Админ-панель (НОВЫЙ БЛОК) ======
+app.get('/admin', requireAuth, requireAdmin, (req, res) => {
+  res.render('admin', { title: 'Админка', user: null, msg: null })
 })
+
+app.post('/admin/find-user', requireAuth, requireAdmin, async (req, res) => {
+  const { uid } = req.body
+  const { rows } = await pool.query('SELECT id, uid, email, username, role, createdAt FROM users WHERE uid = $1', [Number(uid)])
+  const foundUser = rows[0]
+  if (foundUser) {
+    foundUser.createdAt = toLocale(foundUser.createdat)
+  }
+  res.render('admin', { title: 'Админка', user: foundUser, msg: foundUser ? null : 'Пользователь не найден' })
+})
+
+app.post('/admin/create-key', requireAuth, requireAdmin, async (req, res) => {
+  const { days = 30, maxDevices = 1, plan = 'CUSTOM' } = req.body
+  const key = `CC-ADMIN-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+  const expiresAt = new Date(Date.now() + Number(days) * 24 * 3600 * 1000)
+  await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices) VALUES ($1, $2, $3, $4)', [key, plan, expiresAt, Number(maxDevices)])
+  res.render('admin', { title: 'Админка', user: null, msg: `Создан ключ: ${key}` })
+})
+
+const PORT = process.env.PORT || 3000
+app.listen(PORT, () => console.log('Site on', PORT))
