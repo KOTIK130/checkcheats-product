@@ -1,31 +1,51 @@
-<main>
-  <h1>Личный кабинет</h1>
-  <div class="card" style="max-width:1000px; margin:0 auto; display:grid; gap:10px;">
-    <div class="row"><div class="label">UID</div><div class="value"><%= user.uid %></div><div></div></div>
-    <div class="row"><div class="label">Логин</div><div class="value"><%= user.username %></div><div></div></div>
-    <div class="row"><div class="label">Группа</div><div class="value"><%= user.role === 'admin' ? 'Админ' : 'Пользователь' %></div><div></div></div>
-    <div class="row"><div class="label">Дата регистрации</div><div class="value"><%= user.createdAt %></div><div></div></div>
-    <div class="row"><div class="label">E-mail</div><div class="value"><%= user.email %></div><div></div></div>
-    <div class="row">
-      <div class="label">HWID</div>
-      <div class="value"><%= hwid || 'не привязан' %></div>
-      <div>
-        <% if (hwid) { %>
-        <form method="post" action="/hwid/reset"><button class="btn" type="submit">Сбросить</button></form>
-        <% } %>
-      </div>
-    </div>
-    <div class="row"><div class="label">Клиент куплен до</div><div class="value"><%= expiresAt || '—' %></div><div></div></div>
-    <div class="row">
-      <div class="label">Активация ключа</div>
-      <form method="post" action="/key/activate" style="display:flex; gap:10px; width:100%;">
-        <input class="input" name="key" placeholder="Введите ключ" required style="flex:1;">
-        <button class="btn" type="submit">Активировать</button>
-      </form>
-    </div>
+<!-- views/dashboard.ejs -->
+<style>
+.dashboard-card {
+  max-width: 800px;
+  margin: 0 auto;
+  background: #1a2639;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+.db-row { display: flex; align-items: center; margin-bottom: 12px; }
+.db-label { flex: 0 0 200px; padding: 10px 15px; background: linear-gradient(90deg, #1e3a8a, #2563eb); border-radius: 8px; font-weight: 500; }
+.db-value { flex: 1; padding: 10px 15px; background: #2c3e50; border-radius: 8px; margin-left: 12px; }
+.db-actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; }
+</style>
+
+<div class="dashboard-card">
+  <h1 style="text-align: center; margin-bottom: 24px;">Личный кабинет</h1>
+  
+  <div class="db-row"><div class="db-label">UID</div><div class="db-value"><%= user.uid %></div></div>
+  <div class="db-row"><div class="db-label">Логин</div><div class="db-value"><%= user.username %></div></div>
+  <div class="db-row"><div class="db-label">Группа</div><div class="db-value"><%= user.role === 'admin' ? 'Админ' : 'Пользователь' %></div></div>
+  <div class="db-row"><div class="db-label">Дата регистрации</div><div class="db-value"><%= user.createdAt %></div></div>
+  <div class="db-row"><div class="db-label">E-mail</div><div class="db-value"><%= user.email %></div></div>
+  
+  <form method="post" action="/hwid/reset" class="db-row">
+    <div class="db-label">HWID</div>
+    <div class="db-value"><%= hwid || 'не привязан' %></div>
+    <% if (hwid) { %><button class="btn" type="submit" style="margin-left: 12px;">Сбросить</button><% } %>
+  </form>
+  
+  <div class="db-row"><div class="db-label">Клиент куплен до</div><div class="db-value"><%= expiresAt || '—' %></div></div>
+  
+  <form method="post" action="/key/activate" class="db-row">
+    <div class="db-label">Активация ключа</div>
+    <div class="db-value" style="padding:0;"><input class="input" name="key" placeholder="Введите ключ" required></div>
+    <button class="btn" type="submit" style="margin-left: 12px;">Активировать</button>
+  </form>
+
+  <% if (msg) { %><div class="alert" style="margin-top: 15px;"><%= msg %></div><% } %>
+
+  <div class="db-actions">
     <% if (canDownload) { %>
-    <div class="right"><a class="btn" href="<%= downloadUrl %>">Скачать программу</a></div>
+      <a class="btn" href="<%= downloadUrl %>">Скачать программу</a>
     <% } %>
-    <% if (msg) { %><div class="alert"><%= msg %></div><% } %>
+    <a href="/change-password" class="btn btn-secondary">Сменить пароль</a>
+    <% if (user.role === 'admin') { %>
+      <a href="/admin" class="btn">Админ-панель</a>
+    <% } %>
   </div>
-</main>
+</div>
