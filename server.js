@@ -148,18 +148,34 @@ app.get('/dashboard', requireAuth, async (req, res) => {
 })
 
 app.post('/key/activate', requireAuth, async (req, res) => {
-  const key = String(req.body.key || '').trim().toUpperCase()
-  const { rows } = await pool.query('SELECT * FROM licenses WHERE key = $1', [key])
-  const lic = rows[0]
-  if (!lic) return res.render('dashboard', { title: 'Кабинет', msg: 'Ключ не найден', user: req.session.user })
-  if (lic.userid && lic.userid !== req.session.user.id) return res.render('dashboard', { title: 'Кабинет', msg: 'Ключ уже использован', user: req.session.user })
-  if (lic.status === 'blocked') return res.render('dashboard', { title: 'Кабинет', msg: 'Ключ заблокирован', user: req.session.user })
+  const key = String(req.body.key || '').trim().toUpperCase();
+  const { rows: keyData } = await pool.query('SELECT * FROM licenses WHERE key = $1', [key]);
+  const newLic = keyData[0];
+
+  if (!newLic) {
+    return res.render('dashboard', { title: 'Кабинет', msg: 'Ключ не найден', user: req.session.user });
+  }
+  if (newLic.userid) {
+    return res.render('dashboard', { title: 'Кабинет', msg: 'Ключ уже использован', user: req.session.user });
+  }
+
+  const { rows: currentLics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [req.session.user.id, 'active']);
+  const currentLic = currentLics[0];
+
+  if (currentLic) {
+    // Продлеваем существующую подписку
+    const newExpiresAt = new Date(currentLic.expiresat.getTime() + (newLic.expiresat.getTime() - newLic.createdat.getTime()));
+    await pool.query('UPDATE licenses SET expiresAt = $1 WHERE id = $2', [newExpiresAt, currentLic.id]);
+    await pool.query('UPDATE licenses SET status = $1, userId = $2 WHERE id = $3', ['used', req.session.user.id, newLic.id]);
+  } else {
+    // Активируем новую подписку
+    await pool.query('UPDATE licenses SET userId = $1, status = $2 WHERE id = $3', [req.session.user.id, 'active', newLic.id]);
+    const { rows: devices } = await pool.query('SELECT id FROM devices WHERE licenseId = $1', [newLic.id]);
+    if (devices.length === 0) await pool.query('INSERT INTO devices (licenseId) VALUES ($1)', [newLic.id]);
+  }
   
-  await pool.query('UPDATE licenses SET userId = $1, status = $2 WHERE id = $3', [req.session.user.id, 'active', lic.id])
-  const { rows: devices } = await pool.query('SELECT id FROM devices WHERE licenseId = $1', [lic.id])
-  if (devices.length === 0) await pool.query('INSERT INTO devices (licenseId) VALUES ($1)', [lic.id])
-  res.redirect('/dashboard')
-})
+  res.redirect('/dashboard');
+});
 
 app.post('/hwid/reset', requireAuth, async (req, res) => {
   const { rows } = await pool.query('SELECT id FROM licenses WHERE userId = $1 AND status = $2', [req.session.user.id, 'active'])
@@ -167,7 +183,6 @@ app.post('/hwid/reset', requireAuth, async (req, res) => {
   res.redirect('/dashboard')
 })
 
-// НОВЫЕ МАРШРУТЫ ДЛЯ СМЕНЫ ПАРОЛЯ
 app.get('/change-password', requireAuth, (req, res) => {
   res.render('change-password', { title: 'Смена пароля', msg: null })
 })
