@@ -2,6 +2,7 @@
 import 'dotenv/config'
 import express from 'express'
 import path from 'path'
+import crypto from 'crypto' // Для генерации ключей
 import cookieSession from 'cookie-session'
 import bcrypt from 'bcryptjs'
 import pg from 'pg'
@@ -76,6 +77,7 @@ app.use((req, res, next) => { res.locals.user = req.session.user || null; next()
 
 // ====== Helpers ======
 const toLocale = (d) => d ? new Date(d).toLocaleString() : ''
+const genKeyPart = () => crypto.randomBytes(3).toString('hex').toUpperCase().slice(0, 5)
 
 // ====== Routes ======
 app.get('/', (req, res) => res.render('index', { title: 'Главная' }))
@@ -153,24 +155,25 @@ app.post('/key/activate', requireAuth, async (req, res) => {
   const { rows: keyData } = await pool.query('SELECT * FROM licenses WHERE key = $1', [key]);
   const newLic = keyData[0];
 
+  // --- УЛУЧШЕННЫЕ ПРОВЕРКИ ---
   if (!newLic) {
-    return res.render('dashboard', { title: 'Кабинет', msg: 'Ключ не найден', user: req.session.user });
+    return res.render('dashboard', { title: 'Кабинет', msg: 'Ошибка: Ключ не найден.', user: req.session.user });
   }
-  if (newLic.userid) {
-    return res.render('dashboard', { title: 'Кабинет', msg: 'Ключ уже использован', user: req.session.user });
+  if (newLic.status !== 'unbound') {
+    return res.render('dashboard', { title: 'Кабинет', msg: 'Ошибка: Ключ уже был использован.', user: req.session.user });
+  }
+  if (newLic.expiresat < new Date()) {
+    return res.render('dashboard', { title: 'Кабинет', msg: 'Ошибка: Срок действия этого ключа истёк.', user: req.session.user });
   }
 
   const { rows: currentLics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [req.session.user.id, 'active']);
   const currentLic = currentLics[0];
 
   if (currentLic) {
-    // Продлеваем существующую подписку
-    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
     const newExpiresAt = new Date(currentLic.expiresat.getTime() + (newLic.expiresat.getTime() - newLic.createdat.getTime()));
     await pool.query('UPDATE licenses SET expiresAt = $1 WHERE id = $2', [newExpiresAt, currentLic.id]);
     await pool.query('UPDATE licenses SET status = $1, userId = $2 WHERE id = $3', ['used', req.session.user.id, newLic.id]);
   } else {
-    // Активируем новую подписку
     await pool.query('UPDATE licenses SET userId = $1, status = $2 WHERE id = $3', [req.session.user.id, 'active', newLic.id]);
     const { rows: devices } = await pool.query('SELECT id FROM devices WHERE licenseId = $1', [newLic.id]);
     if (devices.length === 0) await pool.query('INSERT INTO devices (licenseId) VALUES ($1)', [newLic.id]);
@@ -241,7 +244,7 @@ app.post('/admin/find-user', requireAuth, requireAdmin, async (req, res) => {
 
 app.post('/admin/create-key', requireAuth, requireAdmin, async (req, res) => {
   const { days = 30, maxDevices = 1, plan = 'CUSTOM' } = req.body
-  const key = `CC-ADMIN-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+  const key = `CheckCheats-${genKeyPart()}-${genKeyPart()}`
   const expiresAt = new Date(Date.now() + Number(days) * 24 * 3600 * 1000)
   await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices) VALUES ($1, $2, $3, $4)', [key, plan, expiresAt, Number(maxDevices)])
   res.render('admin', { title: 'Админка', user: null, msg: `Создан ключ: ${key}` })
