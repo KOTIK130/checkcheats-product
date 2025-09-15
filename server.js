@@ -35,6 +35,7 @@ async function setupDb() {
       status TEXT NOT NULL DEFAULT 'unbound',
       maxDevices INT NOT NULL DEFAULT 1,
       expiresAt TIMESTAMPTZ NOT NULL,
+      createdAt TIMESTAMPTZ DEFAULT NOW(),
       userId INT REFERENCES users(id)
     );
     CREATE TABLE IF NOT EXISTS devices (
@@ -164,6 +165,7 @@ app.post('/key/activate', requireAuth, async (req, res) => {
 
   if (currentLic) {
     // Продлеваем существующую подписку
+    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
     const newExpiresAt = new Date(currentLic.expiresat.getTime() + (newLic.expiresat.getTime() - newLic.createdat.getTime()));
     await pool.query('UPDATE licenses SET expiresAt = $1 WHERE id = $2', [newExpiresAt, currentLic.id]);
     await pool.query('UPDATE licenses SET status = $1, userId = $2 WHERE id = $3', ['used', req.session.user.id, newLic.id]);
