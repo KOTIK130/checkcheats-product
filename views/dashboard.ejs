@@ -29,7 +29,7 @@
     <% if (hwid) { %><button class="btn" type="submit" style="margin-left: 12px;">Сбросить</button><% } %>
   </form>
   
-  <div class="db-row"><div class="db-label">Клиент куплен до</div><div class="db-value"><%= expiresAt || '—' %></div></div>
+  <div class="db-row"><div class="db-label">Подписка истекает</div><div class="db-value"><%= expiresAt || '—' %></div></div>
   
   <form method="post" action="/key/activate" class="db-row">
     <div class="db-label">Активация ключа</div>
