@@ -1,0 +1,13 @@
+<% layout('layout', { title: 'Регистрация' }) %>
+<h1>Регистрация</h1>
+<div class="card" style="max-width:520px; margin:0 auto;">
+  <form method="post" action="/register">
+    <div style="display:grid; gap:10px;">
+      <input class="input" name="email" placeholder="Email" required>
+      <input class="input" name="username" placeholder="Логин" required>
+      <input class="input" type="password" name="password" placeholder="Пароль (минимум 6)" required>
+      <% if (error) { %><div class="alert"><%= error %></div><% } %>
+      <button class="btn" type="submit">Создать</button>
+    </div>
+  </form>
+</div>
