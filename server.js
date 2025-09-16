@@ -179,11 +179,7 @@ app.post('/key/activate', requireAuth, async (req, res) => {
   if (!newLic) return renderError('Ключ не найден.');
   if (newLic.status !== 'unbound') return renderError('Ключ уже был использован.');
   if (newLic.expiresat < new Date()) return renderError('Срок действия этого ключа истёк.');
-  
-  // Проверяем, есть ли дата создания у нового ключа
-  if (!newLic.createdat) {
-    return renderError('Неверный формат ключа (отсутствует дата создания). Обратитесь в поддержку.');
-  }
+  if (!newLic.createdat) return renderError('Неверный формат ключа. Обратитесь в поддержку.');
 
   const { rows: currentLics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [req.session.user.id, 'active']);
   const currentLic = currentLics[0];
@@ -233,12 +229,11 @@ app.post('/api/bot/new-key', async (req, res) => {
   if ((secret || '') !== (process.env.BOT_WEBHOOK_SECRET || ''))
     return res.status(401).json({ error: 'unauthorized' })
   
-  const { key, plan = 'STARTER', expiresAt, maxDevices = 1, invoiceId, amount = 0, currency = 'USDT', telegramId } = req.body || {}
+  const { key, plan = 'LIFETIME', expiresAt, maxDevices = 1, invoiceId, amount = 0, currency = 'USDT', telegramId } = req.body || {}
   if (!key || !expiresAt || !invoiceId) return res.status(400).json({ error: 'bad_request' })
   
   try {
     const expires = new Date(Number(expiresAt))
-    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
     await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices, createdAt) VALUES ($1, $2, $3, $4, NOW())', [String(key).toUpperCase(), plan, expires, Number(maxDevices)])
     await pool.query('INSERT INTO payments (provider, providerId, status, amount, currency, telegramId, licenseKey) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       ['cryptobot', String(invoiceId), 'paid', Number(amount), currency, String(telegramId || ''), String(key).toUpperCase()])
@@ -267,7 +262,6 @@ app.post('/admin/create-key', requireAuth, requireAdmin, async (req, res) => {
   const { days = 30, maxDevices = 1, plan = 'CUSTOM' } = req.body
   const key = `CheckCheats-${genKeyPart()}-${genKeyPart()}`
   const expiresAt = new Date(Date.now() + Number(days) * 24 * 3600 * 1000)
-  // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
   await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices, createdAt) VALUES ($1, $2, $3, $4, NOW())', [key, plan, expiresAt, Number(maxDevices)])
   res.render('admin', { title: 'Админка', user: null, msg: `Создан ключ: ${key}` })
 })
