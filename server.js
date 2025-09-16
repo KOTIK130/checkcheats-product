@@ -249,5 +249,8 @@ app.post('/admin/create-key', requireAuth, requireAdmin, async (req, res) => {
   res.render('admin', { title: 'Админка', user: null, msg: `Создан ключ: ${key}` })
 })
 
+// Эндпоинт для пинговалки (чтобы сайт не засыпал)
+app.get('/ping', (req, res) => res.status(200).send('pong'));
+
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => console.log('Site on', PORT))
