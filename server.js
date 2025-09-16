@@ -154,7 +154,7 @@ async function renderDashboard(req, res, msg = null) {
 
 app.get('/dashboard', requireAuth, (req, res) => renderDashboard(req, res));
 
-app.post('/key/activate', requireAuth, async (req, res) => {
+app.post('/dashboard/activate', requireAuth, async (req, res) => {
   const key = String(req.body.key || '').trim().toUpperCase();
   const { rows: keyData } = await pool.query('SELECT * FROM licenses WHERE key = $1', [key]);
   const newLic = keyData[0];
