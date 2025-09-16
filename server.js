@@ -156,12 +156,23 @@ app.post('/key/activate', requireAuth, async (req, res) => {
   const newLic = keyData[0];
 
   // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
-  const renderError = (msg) => {
-    // Эта функция будет показывать сообщение об ошибке, не краша сайт
+  const renderError = async (msg) => {
+    // Эта функция всегда будет передавать полный набор данных в dashboard.ejs
+    const { rows: users } = await pool.query('SELECT * FROM users WHERE id = $1', [req.session.user.id]);
+    const user = users[0];
+    const { rows: lics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [user.id, 'active']);
+    const lic = lics[0];
+    let hwid = '', expiresAt = '', canDownload = false;
+    if (lic) {
+      const { rows: devices } = await pool.query('SELECT * FROM devices WHERE licenseId = $1', [lic.id]);
+      hwid = devices[0]?.hwid || '';
+      expiresAt = toLocale(lic.expiresat);
+      canDownload = lic.expiresat > new Date();
+    }
     res.render('dashboard', {
       title: 'Кабинет',
-      user: req.session.user, // передаём текущего пользователя
-      hwid: '', expiresAt: '', canDownload: false, // заглушки
+      user: { ...user, createdAt: toLocale(user.createdat) },
+      hwid, expiresAt, canDownload,
       downloadUrl: process.env.DOWNLOAD_URL || '#',
       msg: `Ошибка: ${msg}`
     });
