@@ -122,7 +122,7 @@ app.post('/register', async (req, res) => {
 function requireAuth(req, res, next) { if (!req.session.user) return res.redirect('/login'); next() }
 function requireAdmin(req, res, next) { if (req.session.user?.role !== 'admin') return res.status(403).send('Доступ запрещён'); next() }
 
-// Функция для отрисовки дашборда (чтобы избежать дублирования кода)
+// Функция для отрисовки дашборда
 async function renderDashboard(req, res, msg = null) {
   const { rows: users } = await pool.query('SELECT * FROM users WHERE id = $1', [req.session.user.id]);
   const user = users[0];
