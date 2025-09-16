@@ -155,9 +155,7 @@ app.post('/key/activate', requireAuth, async (req, res) => {
   const { rows: keyData } = await pool.query('SELECT * FROM licenses WHERE key = $1', [key]);
   const newLic = keyData[0];
 
-  // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
   const renderError = async (msg) => {
-    // Эта функция всегда будет передавать полный набор данных в dashboard.ejs
     const { rows: users } = await pool.query('SELECT * FROM users WHERE id = $1', [req.session.user.id]);
     const user = users[0];
     const { rows: lics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [user.id, 'active']);
@@ -178,21 +176,21 @@ app.post('/key/activate', requireAuth, async (req, res) => {
     });
   };
 
-  if (!newLic) {
-    return renderError('Ключ не найден.');
-  }
-  if (newLic.status !== 'unbound') {
-    return renderError('Ключ уже был использован.');
-  }
-  if (newLic.expiresat < new Date()) {
-    return renderError('Срок действия этого ключа истёк.');
+  if (!newLic) return renderError('Ключ не найден.');
+  if (newLic.status !== 'unbound') return renderError('Ключ уже был использован.');
+  if (newLic.expiresat < new Date()) return renderError('Срок действия этого ключа истёк.');
+  
+  // Проверяем, есть ли дата создания у нового ключа
+  if (!newLic.createdat) {
+    return renderError('Неверный формат ключа (отсутствует дата создания). Обратитесь в поддержку.');
   }
 
   const { rows: currentLics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [req.session.user.id, 'active']);
   const currentLic = currentLics[0];
 
   if (currentLic) {
-    const newExpiresAt = new Date(currentLic.expiresat.getTime() + (newLic.expiresat.getTime() - newLic.createdat.getTime()));
+    const durationMs = newLic.expiresat.getTime() - newLic.createdat.getTime();
+    const newExpiresAt = new Date(currentLic.expiresat.getTime() + durationMs);
     await pool.query('UPDATE licenses SET expiresAt = $1 WHERE id = $2', [newExpiresAt, currentLic.id]);
     await pool.query('UPDATE licenses SET status = $1, userId = $2 WHERE id = $3', ['used', req.session.user.id, newLic.id]);
   } else {
@@ -240,7 +238,8 @@ app.post('/api/bot/new-key', async (req, res) => {
   
   try {
     const expires = new Date(Number(expiresAt))
-    await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices) VALUES ($1, $2, $3, $4)', [String(key).toUpperCase(), plan, expires, Number(maxDevices)])
+    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+    await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices, createdAt) VALUES ($1, $2, $3, $4, NOW())', [String(key).toUpperCase(), plan, expires, Number(maxDevices)])
     await pool.query('INSERT INTO payments (provider, providerId, status, amount, currency, telegramId, licenseKey) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       ['cryptobot', String(invoiceId), 'paid', Number(amount), currency, String(telegramId || ''), String(key).toUpperCase()])
     return res.json({ ok: true })
@@ -268,7 +267,8 @@ app.post('/admin/create-key', requireAuth, requireAdmin, async (req, res) => {
   const { days = 30, maxDevices = 1, plan = 'CUSTOM' } = req.body
   const key = `CheckCheats-${genKeyPart()}-${genKeyPart()}`
   const expiresAt = new Date(Date.now() + Number(days) * 24 * 3600 * 1000)
-  await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices) VALUES ($1, $2, $3, $4)', [key, plan, expiresAt, Number(maxDevices)])
+  // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+  await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices, createdAt) VALUES ($1, $2, $3, $4, NOW())', [key, plan, expiresAt, Number(maxDevices)])
   res.render('admin', { title: 'Админка', user: null, msg: `Создан ключ: ${key}` })
 })
 
