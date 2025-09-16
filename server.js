@@ -2,7 +2,7 @@
 import 'dotenv/config'
 import express from 'express'
 import path from 'path'
-import crypto from 'crypto' // Для генерации ключей
+import crypto from 'crypto'
 import cookieSession from 'cookie-session'
 import bcrypt from 'bcryptjs'
 import pg from 'pg'
@@ -155,15 +155,26 @@ app.post('/key/activate', requireAuth, async (req, res) => {
   const { rows: keyData } = await pool.query('SELECT * FROM licenses WHERE key = $1', [key]);
   const newLic = keyData[0];
 
-  // --- УЛУЧШЕННЫЕ ПРОВЕРКИ ---
+  // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+  const renderError = (msg) => {
+    // Эта функция будет показывать сообщение об ошибке, не краша сайт
+    res.render('dashboard', {
+      title: 'Кабинет',
+      user: req.session.user, // передаём текущего пользователя
+      hwid: '', expiresAt: '', canDownload: false, // заглушки
+      downloadUrl: process.env.DOWNLOAD_URL || '#',
+      msg: `Ошибка: ${msg}`
+    });
+  };
+
   if (!newLic) {
-    return res.render('dashboard', { title: 'Кабинет', msg: 'Ошибка: Ключ не найден.', user: req.session.user });
+    return renderError('Ключ не найден.');
   }
   if (newLic.status !== 'unbound') {
-    return res.render('dashboard', { title: 'Кабинет', msg: 'Ошибка: Ключ уже был использован.', user: req.session.user });
+    return renderError('Ключ уже был использован.');
   }
   if (newLic.expiresat < new Date()) {
-    return res.render('dashboard', { title: 'Кабинет', msg: 'Ошибка: Срок действия этого ключа истёк.', user: req.session.user });
+    return renderError('Срок действия этого ключа истёк.');
   }
 
   const { rows: currentLics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [req.session.user.id, 'active']);
