@@ -1,10 +1,22 @@
-<div style="text-align: center; padding: 80px 0;">
+<!-- views/index.ejs -->
+<style>
+.hero { text-align: center; padding: 100px 0; }
+.hero h1 { font-size: 3.5rem; font-weight: 800; background: linear-gradient(90deg, #60a5fa, #00b2ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero p { font-size: 1.2rem; color: var(--text-secondary); max-width: 600px; margin: 20px auto; }
+.hero .actions { margin-top: 40px; display: flex; justify-content: center; gap: 20px; }
+</style>
+
+<div class="hero">
   <h1>CheckCheats: Надёжная Проверка Игроков на Читы</h1>
-  <p style="font-size: 1.2rem; color: var(--text-secondary); max-width: 600px; margin: 20px auto;">
+  <p>
     Инструмент для администраторов и модераторов серверов Minecraft. Быстрое сканирование, HWID-привязка и точные результаты для поддержания честной игры.
   </p>
-  <div style="margin-top: 40px; display: flex; justify-content: center; gap: 20px;">
-    <a href="/products" class="btn">Подробнее о продукте</a>
-    <a href="/register" class="btn btn-secondary">Начать проверку</a>
+  <div class="actions">
+    <a href="/products" class="btn btn-secondary">Подробнее о продукте</a>
+    <% if (user) { %>
+      <a href="/dashboard" class="btn">Начать проверку</a>
+    <% } else { %>
+      <a href="/login" class="btn">Начать проверку</a>
+    <% } %>
   </div>
 </div>
