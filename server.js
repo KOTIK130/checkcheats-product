@@ -1,4 +1,3 @@
-// server.js
 import 'dotenv/config'
 import express from 'express'
 import path from 'path'
@@ -122,44 +121,20 @@ app.post('/register', async (req, res) => {
 function requireAuth(req, res, next) { if (!req.session.user) return res.redirect('/login'); next() }
 function requireAdmin(req, res, next) { if (req.session.user?.role !== 'admin') return res.status(403).send('Доступ запрещён'); next() }
 
-app.get('/dashboard', requireAuth, async (req, res) => {
-  const { rows: users } = await pool.query('SELECT * FROM users WHERE id = $1', [req.session.user.id])
-  const user = users[0]
-
-  if (!user) {
-    req.session = null;
-    return res.redirect('/login');
-  }
-
-  const { rows: lics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [user.id, 'active'])
-  const lic = lics[0]
-
-  let hwid = '', expiresAt = '', canDownload = false
-  if (lic) {
-    const { rows: devices } = await pool.query('SELECT * FROM devices WHERE licenseId = $1', [lic.id])
-    hwid = devices[0]?.hwid || ''
-    expiresAt = toLocale(lic.expiresat)
-    canDownload = lic.expiresat > new Date()
-  }
-
-  res.render('dashboard', {
-    title: 'Кабинет',
-    user: { ...user, createdAt: toLocale(user.createdat) },
-    hwid, expiresAt, canDownload,
-    downloadUrl: process.env.DOWNLOAD_URL || '#', msg: null
-  })
-})
-
-app.post('/key/activate', requireAuth, async (req, res) => {
-  const key = String(req.body.key || '').trim().toUpperCase();
-  const { rows: keyData } = await pool.query('SELECT * FROM licenses WHERE key = $1', [key]);
-  const newLic = keyData[0];
-
-  const renderError = async (msg) => {
+// Функция для отрисовки дашборда
+async function renderDashboard(req, res, msg = null) {
+  try {
     const { rows: users } = await pool.query('SELECT * FROM users WHERE id = $1', [req.session.user.id]);
     const user = users[0];
+
+    if (!user) {
+      req.session = null;
+      return res.redirect('/login');
+    }
+
     const { rows: lics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [user.id, 'active']);
     const lic = lics[0];
+
     let hwid = '', expiresAt = '', canDownload = false;
     if (lic) {
       const { rows: devices } = await pool.query('SELECT * FROM devices WHERE licenseId = $1', [lic.id]);
@@ -167,39 +142,53 @@ app.post('/key/activate', requireAuth, async (req, res) => {
       expiresAt = toLocale(lic.expiresat);
       canDownload = lic.expiresat > new Date();
     }
+
     res.render('dashboard', {
       title: 'Кабинет',
       user: { ...user, createdAt: toLocale(user.createdat) },
       hwid, expiresAt, canDownload,
       downloadUrl: process.env.DOWNLOAD_URL || '#',
-      msg: `Ошибка: ${msg}`
+      msg: msg
     });
-  };
-
-  if (!newLic) return renderError('Ключ не найден.');
-  if (newLic.status !== 'unbound') return renderError('Ключ уже был использован.');
-  if (newLic.expiresat < new Date()) return renderError('Срок действия этого ключа истёк.');
-  
-  // Проверяем, есть ли дата создания у нового ключа
-  if (!newLic.createdat) {
-    return renderError('Неверный формат ключа (отсутствует дата создания). Обратитесь в поддержку.');
+  } catch (error) {
+    console.error("Error rendering dashboard:", error);
+    res.status(500).send("Internal Server Error");
   }
+}
 
-  const { rows: currentLics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [req.session.user.id, 'active']);
-  const currentLic = currentLics[0];
+app.get('/dashboard', requireAuth, (req, res) => renderDashboard(req, res));
 
-  if (currentLic) {
-    const durationMs = newLic.expiresat.getTime() - newLic.createdat.getTime();
-    const newExpiresAt = new Date(currentLic.expiresat.getTime() + durationMs);
-    await pool.query('UPDATE licenses SET expiresAt = $1 WHERE id = $2', [newExpiresAt, currentLic.id]);
-    await pool.query('UPDATE licenses SET status = $1, userId = $2 WHERE id = $3', ['used', req.session.user.id, newLic.id]);
-  } else {
-    await pool.query('UPDATE licenses SET userId = $1, status = $2 WHERE id = $3', [req.session.user.id, 'active', newLic.id]);
-    const { rows: devices } = await pool.query('SELECT id FROM devices WHERE licenseId = $1', [newLic.id]);
-    if (devices.length === 0) await pool.query('INSERT INTO devices (licenseId) VALUES ($1)', [newLic.id]);
+app.post('/key/activate', requireAuth, async (req, res) => {
+  try {
+    const key = String(req.body.key || '').trim().toUpperCase();
+    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ: Ищем ключ без учета регистра ---
+    const { rows: keyData } = await pool.query('SELECT * FROM licenses WHERE UPPER(key) = $1', [key]);
+    const newLic = keyData[0];
+
+    if (!newLic) return renderDashboard(req, res, 'Ошибка: Ключ не найден.');
+    if (newLic.status !== 'unbound') return renderDashboard(req, res, 'Ошибка: Ключ уже был использован.');
+    if (newLic.expiresat < new Date()) return renderDashboard(req, res, 'Ошибка: Срок действия этого ключа истёк.');
+    if (!newLic.createdat) return renderDashboard(req, res, 'Ошибка: Неверный формат ключа. Обратитесь в поддержку.');
+
+    const { rows: currentLics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [req.session.user.id, 'active']);
+    const currentLic = currentLics[0];
+
+    if (currentLic) {
+      const durationMs = newLic.expiresat.getTime() - newLic.createdat.getTime();
+      const newExpiresAt = new Date(currentLic.expiresat.getTime() + durationMs);
+      await pool.query('UPDATE licenses SET expiresAt = $1 WHERE id = $2', [newExpiresAt, currentLic.id]);
+      await pool.query('UPDATE licenses SET status = $1, userId = $2 WHERE id = $3', ['used', req.session.user.id, newLic.id]);
+    } else {
+      await pool.query('UPDATE licenses SET userId = $1, status = $2 WHERE id = $3', [req.session.user.id, 'active', newLic.id]);
+      const { rows: devices } = await pool.query('SELECT id FROM devices WHERE licenseId = $1', [newLic.id]);
+      if (devices.length === 0) await pool.query('INSERT INTO devices (licenseId) VALUES ($1)', [newLic.id]);
+    }
+    
+    res.redirect('/dashboard');
+  } catch (error) {
+    console.error("Error activating key:", error);
+    renderDashboard(req, res, 'Произошла внутренняя ошибка. Попробуйте позже.');
   }
-  
-  res.redirect('/dashboard');
 });
 
 app.post('/hwid/reset', requireAuth, async (req, res) => {
@@ -233,12 +222,11 @@ app.post('/api/bot/new-key', async (req, res) => {
   if ((secret || '') !== (process.env.BOT_WEBHOOK_SECRET || ''))
     return res.status(401).json({ error: 'unauthorized' })
   
-  const { key, plan = 'STARTER', expiresAt, maxDevices = 1, invoiceId, amount = 0, currency = 'USDT', telegramId } = req.body || {}
+  const { key, plan = 'LIFETIME', expiresAt, maxDevices = 1, invoiceId, amount = 0, currency = 'USDT', telegramId } = req.body || {}
   if (!key || !expiresAt || !invoiceId) return res.status(400).json({ error: 'bad_request' })
   
   try {
     const expires = new Date(Number(expiresAt))
-    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
     await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices, createdAt) VALUES ($1, $2, $3, $4, NOW())', [String(key).toUpperCase(), plan, expires, Number(maxDevices)])
     await pool.query('INSERT INTO payments (provider, providerId, status, amount, currency, telegramId, licenseKey) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       ['cryptobot', String(invoiceId), 'paid', Number(amount), currency, String(telegramId || ''), String(key).toUpperCase()])
@@ -267,7 +255,6 @@ app.post('/admin/create-key', requireAuth, requireAdmin, async (req, res) => {
   const { days = 30, maxDevices = 1, plan = 'CUSTOM' } = req.body
   const key = `CheckCheats-${genKeyPart()}-${genKeyPart()}`
   const expiresAt = new Date(Date.now() + Number(days) * 24 * 3600 * 1000)
-  // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
   await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices, createdAt) VALUES ($1, $2, $3, $4, NOW())', [key, plan, expiresAt, Number(maxDevices)])
   res.render('admin', { title: 'Админка', user: null, msg: `Создан ключ: ${key}` })
 })
