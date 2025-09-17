@@ -156,7 +156,7 @@ app.get('/dashboard', requireAuth, (req, res) => renderDashboard(req, res));
 
 app.post('/key/activate', requireAuth, async (req, res) => {
   const key = String(req.body.key || '').trim().toUpperCase();
-  const { rows: keyData } = await pool.query('SELECT * FROM licenses WHERE key = $1', [key]);
+  const { rows: keyData } = await pool.query('SELECT * FROM licenses WHERE UPPER(key) = $1', [key]);
   const newLic = keyData[0];
 
   if (!newLic) return renderDashboard(req, res, 'Ошибка: Ключ не найден.');
@@ -258,7 +258,6 @@ app.post('/admin/reset-subscription', requireAuth, requireAdmin, async (req, res
     return res.render('admin', { title: 'Админка', user: null, msg: `Пользователь с UID ${uid} не найден.` });
   }
 
-  // Находим активную лицензию и удаляем её
   const { rows: lics } = await pool.query('SELECT id FROM licenses WHERE userId = $1 AND status = $2', [user.id, 'active']);
   if (lics.length > 0) {
     const licenseIds = lics.map(l => l.id);
