@@ -226,6 +226,46 @@ app.post('/api/bot/new-key', async (req, res) => {
   }
 })
 
+// ====== НОВЫЙ API ДЛЯ ЛАУНЧЕРА ======
+app.post('/api/launcher/login', async (req, res) => {
+  const { email, password, hwid } = req.body;
+  if (!email || !password || !hwid) {
+    return res.status(400).json({ ok: false, reason: 'bad_request' });
+  }
+
+  const { rows: users } = await pool.query('SELECT * FROM users WHERE email = $1', [String(email).toLowerCase()]);
+  const user = users[0];
+  if (!user || !bcrypt.compareSync(password, user.passwordhash)) {
+    return res.status(401).json({ ok: false, reason: 'invalid_credentials' });
+  }
+
+  const { rows: lics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [user.id, 'active']);
+  const lic = lics[0];
+  if (!lic) {
+    return res.status(403).json({ ok: false, reason: 'no_license' });
+  }
+  if (lic.expiresat < new Date()) {
+    return res.status(403).json({ ok: false, reason: 'expired' });
+  }
+
+  const { rows: devices } = await pool.query('SELECT * FROM devices WHERE licenseId = $1', [lic.id]);
+  const existingDevice = devices.find(d => d.hwid === hwid);
+  if (existingDevice) {
+    // HWID совпал, всё ок
+    return res.json({ ok: true, deviceId: existingDevice.id, plan: lic.plan, expiresAt: lic.expiresat.getTime() });
+  }
+
+  const emptySlot = devices.find(d => !d.hwid);
+  if (emptySlot) {
+    // Привязываем HWID к пустому слоту
+    await pool.query('UPDATE devices SET hwid = $1, lastSeenAt = NOW() WHERE id = $2', [hwid, emptySlot.id]);
+    return res.json({ ok: true, deviceId: emptySlot.id, plan: lic.plan, expiresAt: lic.expiresat.getTime() });
+  } else {
+    // Свободных слотов нет
+    return res.status(409).json({ ok: false, reason: 'hwid_limit' });
+  }
+});
+
 // ====== Админ-панель ======
 app.get('/admin', requireAuth, requireAdmin, (req, res) => {
   res.render('admin', { title: 'Админка', user: null, msg: null })
