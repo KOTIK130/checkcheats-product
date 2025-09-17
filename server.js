@@ -154,7 +154,7 @@ async function renderDashboard(req, res, msg = null) {
 
 app.get('/dashboard', requireAuth, (req, res) => renderDashboard(req, res));
 
-app.post('/dashboard/activate', requireAuth, async (req, res) => {
+app.post('/key/activate', requireAuth, async (req, res) => {
   const key = String(req.body.key || '').trim().toUpperCase();
   const { rows: keyData } = await pool.query('SELECT * FROM licenses WHERE key = $1', [key]);
   const newLic = keyData[0];
@@ -248,9 +248,6 @@ app.post('/admin/create-key', requireAuth, requireAdmin, async (req, res) => {
   await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices, createdAt) VALUES ($1, $2, $3, $4, NOW())', [key, plan, expiresAt, Number(maxDevices)])
   res.render('admin', { title: 'Админка', user: null, msg: `Создан ключ: ${key}` })
 })
-
-// Эндпоинт для пинговалки (чтобы сайт не засыпал)
-app.get('/ping', (req, res) => res.status(200).send('pong'));
 
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => console.log('Site on', PORT))
