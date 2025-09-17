@@ -31,7 +31,7 @@
   
   <div class="db-row"><div class="db-label">Подписка истекает</div><div class="db-value"><%= expiresAt || '—' %></div></div>
   
-  <form method="post" action="/dashboard/activate" class="db-row">
+  <form method="post" action="/key/activate" class="db-row">
     <div class="db-label">Активация ключа</div>
     <div class="db-value" style="padding:0;"><input class="input" name="key" placeholder="Введите ключ" required></div>
     <button class="btn" type="submit" style="margin-left: 12px;">Активировать</button>
