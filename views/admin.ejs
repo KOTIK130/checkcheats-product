@@ -1,3 +1,4 @@
+<!-- views/admin.ejs -->
 <h1>Админ-панель</h1>
 <div class="card" style="max-width: 1000px; margin: 0 auto; display: grid; gap: 20px;">
   <div>
@@ -24,6 +25,14 @@
       <input class="input" name="maxDevices" placeholder="Устройств" value="1" type="number">
       <input class="input" name="plan" placeholder="План" value="CUSTOM">
       <button class="btn" type="submit">Создать</button>
+    </form>
+  </div>
+  <hr class="sep">
+  <div>
+    <h2>Сброс подписки по UID</h2>
+    <form method="post" action="/admin/reset-subscription" style="display: flex; gap: 10px;">
+      <input class="input" name="uid" placeholder="UID пользователя" required>
+      <button class="btn" type="submit" style="background: #e53e3e;">Сбросить подписку</button>
     </form>
   </div>
   <% if (msg) { %><div class="alert"><%= msg %></div><% } %>
