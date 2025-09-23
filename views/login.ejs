@@ -1,13 +1,12 @@
-<main>
-  <h1>Вход</h1>
-  <div class="card" style="max-width:520px; margin:0 auto;">
-    <form method="post" action="/login">
-      <div style="display:grid; gap:10px;">
-        <input class="input" name="email" placeholder="Email" required>
-        <input class="input" type="password" name="password" placeholder="Пароль" required>
-        <% if (error) { %><div class="alert"><%= error %></div><% } %>
-        <button class="btn" type="submit">Войти</button>
-      </div>
-    </form>
-  </div>
-</main>
+<!-- views/login.ejs -->
+<h1>Вход</h1>
+<div class="card" style="max-width:520px; margin:0 auto;">
+  <form method="post" action="/login">
+    <div style="display:grid; gap:10px;">
+      <input class="input" name="login" placeholder="Login/Email" required autocomplete="username">
+      <input class="input" type="password" name="password" placeholder="Password" required autocomplete="current-password">
+      <% if (error) { %><div class="alert"><%= error %></div><% } %>
+      <button class="btn" type="submit">Войти</button>
+    </div>
+  </form>
+</div>
