@@ -181,12 +181,6 @@ app.post('/key/activate', requireAuth, async (req, res) => {
   res.redirect('/dashboard');
 });
 
-app.post('/hwid/reset', requireAuth, async (req, res) => {
-  const { rows } = await pool.query('SELECT id FROM licenses WHERE userId = $1 AND status = $2', [req.session.user.id, 'active'])
-  if (rows[0]) await pool.query('UPDATE devices SET hwid = NULL WHERE licenseId = $1', [rows[0].id])
-  res.redirect('/dashboard')
-})
-
 app.get('/change-password', requireAuth, (req, res) => {
   res.render('change-password', { title: 'Смена пароля', msg: null })
 })
@@ -251,17 +245,14 @@ app.post('/api/launcher/login', async (req, res) => {
   const { rows: devices } = await pool.query('SELECT * FROM devices WHERE licenseId = $1', [lic.id]);
   const existingDevice = devices.find(d => d.hwid === hwid);
   if (existingDevice) {
-    // HWID совпал, всё ок
     return res.json({ ok: true, deviceId: existingDevice.id, plan: lic.plan, expiresAt: lic.expiresat.getTime() });
   }
 
   const emptySlot = devices.find(d => !d.hwid);
   if (emptySlot) {
-    // Привязываем HWID к пустому слоту
     await pool.query('UPDATE devices SET hwid = $1, lastSeenAt = NOW() WHERE id = $2', [hwid, emptySlot.id]);
     return res.json({ ok: true, deviceId: emptySlot.id, plan: lic.plan, expiresAt: lic.expiresat.getTime() });
   } else {
-    // Свободных слотов нет
     return res.status(409).json({ ok: false, reason: 'hwid_limit' });
   }
 });
