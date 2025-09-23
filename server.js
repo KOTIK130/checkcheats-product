@@ -92,8 +92,8 @@ app.get('/products', (req, res) => {
 app.get('/login', (req, res) => res.render('login', { title: 'Вход', error: null }))
 app.post('/login', async (req, res) => {
   const { login, password } = req.body;
-  // --- ИЗМЕНЕНИЕ ЗДЕСЬ: Ищем и по email, и по username ---
-  const { rows } = await pool.query('SELECT * FROM users WHERE email = $1 OR username = $1', [String(login).toLowerCase()]);
+  // --- ИСПРАВЛЕНИЕ ЗДЕСЬ: ищем по email или username, игнорируя регистр ---
+  const { rows } = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)', [String(login)]);
   const user = rows[0];
 
   if (!user || !bcrypt.compareSync(password, user.passwordhash)) {
@@ -235,7 +235,7 @@ app.post('/api/launcher/login', async (req, res) => {
     return res.status(400).json({ ok: false, reason: 'bad_request' });
   }
 
-  const { rows: users } = await pool.query('SELECT * FROM users WHERE email = $1 OR username = $1', [String(email).toLowerCase()]);
+  const { rows: users } = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)', [String(email)]);
   const user = users[0];
   if (!user || !bcrypt.compareSync(password, user.passwordhash)) {
     return res.status(401).json({ ok: false, reason: 'invalid_credentials' });
