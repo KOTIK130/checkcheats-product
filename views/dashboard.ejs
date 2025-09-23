@@ -10,7 +10,7 @@
 }
 .db-row { display: flex; align-items: center; margin-bottom: 12px; }
 .db-label { flex: 0 0 200px; padding: 10px 15px; background: linear-gradient(90deg, #1e3a8a, #2563eb); border-radius: 8px; font-weight: 500; }
-.db-value { flex: 1; padding: 10px 15px; background: #2c3e50; border-radius: 8px; margin-left: 12px; }
+.db-value { flex: 1; padding: 10px 15px; background: #2c3e50; border-radius: 8px; margin-left: 12px; word-break: break-all; }
 .db-actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; }
 </style>
 
@@ -23,11 +23,10 @@
   <div class="db-row"><div class="db-label">Дата регистрации</div><div class="db-value"><%= user.createdAt %></div></div>
   <div class="db-row"><div class="db-label">E-mail</div><div class="db-value"><%= user.email %></div></div>
   
-  <form method="post" action="/hwid/reset" class="db-row">
+  <div class="db-row">
     <div class="db-label">HWID</div>
     <div class="db-value"><%= hwid || 'не привязан' %></div>
-    <% if (hwid) { %><button class="btn" type="submit" style="margin-left: 12px;">Сбросить</button><% } %>
-  </form>
+  </div>
   
   <div class="db-row"><div class="db-label">Подписка истекает</div><div class="db-value"><%= expiresAt || '—' %></div></div>
   
