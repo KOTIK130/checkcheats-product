@@ -91,15 +91,17 @@ app.get('/products', (req, res) => {
 
 app.get('/login', (req, res) => res.render('login', { title: 'Вход', error: null }))
 app.post('/login', async (req, res) => {
-  const { email, password } = req.body
-  const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [String(email).toLowerCase()])
-  const user = rows[0]
+  const { login, password } = req.body;
+  // --- ИЗМЕНЕНИЕ ЗДЕСЬ: Ищем и по email, и по username ---
+  const { rows } = await pool.query('SELECT * FROM users WHERE email = $1 OR username = $1', [String(login).toLowerCase()]);
+  const user = rows[0];
+
   if (!user || !bcrypt.compareSync(password, user.passwordhash)) {
-    return res.render('login', { title: 'Вход', error: 'Неверные данные' })
+    return res.render('login', { title: 'Вход', error: 'Неверные данные' });
   }
-  req.session.user = { id: user.id, email: user.email, username: user.username, role: user.role }
-  res.redirect('/dashboard')
-})
+  req.session.user = { id: user.id, email: user.email, username: user.username, role: user.role };
+  res.redirect('/dashboard');
+});
 app.post('/logout', (req, res) => { req.session = null; res.redirect('/') })
 
 app.get('/register', (req, res) => res.render('register', { title: 'Регистрация', error: null }))
@@ -181,6 +183,12 @@ app.post('/key/activate', requireAuth, async (req, res) => {
   res.redirect('/dashboard');
 });
 
+app.post('/hwid/reset', requireAuth, async (req, res) => {
+  const { rows } = await pool.query('SELECT id FROM licenses WHERE userId = $1 AND status = $2', [req.session.user.id, 'active'])
+  if (rows[0]) await pool.query('UPDATE devices SET hwid = NULL WHERE licenseId = $1', [rows[0].id])
+  res.redirect('/dashboard')
+})
+
 app.get('/change-password', requireAuth, (req, res) => {
   res.render('change-password', { title: 'Смена пароля', msg: null })
 })
@@ -227,7 +235,7 @@ app.post('/api/launcher/login', async (req, res) => {
     return res.status(400).json({ ok: false, reason: 'bad_request' });
   }
 
-  const { rows: users } = await pool.query('SELECT * FROM users WHERE email = $1', [String(email).toLowerCase()]);
+  const { rows: users } = await pool.query('SELECT * FROM users WHERE email = $1 OR username = $1', [String(email).toLowerCase()]);
   const user = users[0];
   if (!user || !bcrypt.compareSync(password, user.passwordhash)) {
     return res.status(401).json({ ok: false, reason: 'invalid_credentials' });
