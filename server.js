@@ -8,6 +8,10 @@ import bcrypt from 'bcryptjs'
 import pg from 'pg'
 import ejsLayouts from 'express-ejs-layouts'
 
+// НОВЫЕ ИМПОРТЫ ДЛЯ WEBSOCKET
+import http from 'http'
+import { WebSocketServer } from 'ws'
+
 const { Pool } = pg
 const app = express()
 const __dirname = path.resolve()
@@ -228,7 +232,7 @@ app.post('/api/bot/new-key', async (req, res) => {
   }
 })
 
-// ====== НОВЫЙ API ДЛЯ ЛАУНЧЕРА ======
+// ====== API ДЛЯ ЛАУНЧЕРА ======
 app.post('/api/launcher/login', async (req, res) => {
   const { email, password, hwid } = req.body;
   if (!email || !password || !hwid) {
@@ -308,5 +312,96 @@ app.post('/admin/reset-subscription', requireAuth, requireAdmin, async (req, res
   }
 });
 
+
+// =======================================================================
+//                НОВЫЙ БЛОК: WEBSOCKET СЕРВЕР ДЛЯ ПРОВЕРОК
+// =======================================================================
+
+// 1. Создаем стандартный HTTP сервер из нашего Express приложения.
+const server = http.createServer(app);
+
+// 2. Создаем WebSocket сервер (wss) поверх HTTP сервера.
+const wss = new WebSocketServer({ server });
+
+// 3. Хранилища для управления подключениями.
+const sessions = new Map();
+const moderators = new Map();
+
+// 4. Обработчик для новых подключений.
+wss.on('connection', ws => {
+    console.log('[WebSocket] Новый клиент подключился.');
+    let sessionCode = null; 
+
+    ws.on('message', message => {
+        try {
+            const data = JSON.parse(message);
+            console.log('[WebSocket] Получено сообщение:', data);
+
+            switch (data.type) {
+                case 'REGISTER_SUSPECT':
+                    sessionCode = Math.floor(100000 + Math.random() * 900000).toString();
+                    sessions.set(sessionCode, ws);
+                    ws.send(JSON.stringify({ type: 'SESSION_CREATED', code: sessionCode }));
+                    console.log(`[WebSocket] Подозреваемый зарегистрирован с кодом ${sessionCode}`);
+                    break;
+
+                case 'INITIATE_SCAN':
+                    const targetCode = data.code;
+                    const suspectWs = sessions.get(targetCode);
+                    if (suspectWs) {
+                        moderators.set(targetCode, ws);
+                        suspectWs.send(JSON.stringify({ type: 'SCAN_REQUEST' }));
+                        console.log(`[WebSocket] Запрос на сканирование отправлен для кода ${targetCode}`);
+                    } else {
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'Клиент с таким кодом не найден.' }));
+                    }
+                    break;
+
+                case 'SCAN_ACCEPTED':
+                    // Можно добавить логику, если нужно
+                    break;
+                
+                case 'SCAN_DECLINED':
+                    if (sessionCode) {
+                        const moderatorWs = moderators.get(sessionCode);
+                        if (moderatorWs) {
+                            moderatorWs.send(JSON.stringify({ type: 'SCAN_DECLINED' }));
+                            moderators.delete(sessionCode);
+                        }
+                    }
+                    break;
+
+                case 'SCAN_RESULTS':
+                    if (sessionCode) {
+                        const moderatorWs = moderators.get(sessionCode);
+                        if (moderatorWs) {
+                            moderatorWs.send(JSON.stringify({ type: 'SCAN_RESULTS', results: data.results }));
+                            console.log(`[WebSocket] Результаты для кода ${sessionCode} отправлены модератору`);
+                        }
+                    }
+                    break;
+            }
+        } catch (error) {
+            console.error('[WebSocket] Ошибка обработки сообщения:', error);
+        }
+    });
+
+    ws.on('close', () => {
+        console.log('[WebSocket] Клиент отключился.');
+        if (sessionCode) {
+            sessions.delete(sessionCode);
+            const moderatorWs = moderators.get(sessionCode);
+            if (moderatorWs) {
+                 moderatorWs.send(JSON.stringify({ type: 'ERROR', message: 'Проверяемый пользователь отключился.' }));
+            }
+            moderators.delete(sessionCode);
+            console.log(`[WebSocket] Сессия ${sessionCode} закрыта.`);
+        }
+    });
+});
+
+
+// ====== ЗАПУСК СЕРВЕРА ======
 const PORT = process.env.PORT || 3000
-app.listen(PORT, () => console.log('Site on', PORT))
+// ВАЖНО: Заменяем app.listen на server.listen, чтобы WebSocket тоже запустился
+server.listen(PORT, () => console.log(`Сайт и WebSocket сервер запущены на порту ${PORT}`))
