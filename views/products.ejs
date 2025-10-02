@@ -1,24 +1,15 @@
-<h1>Продукты</h1>
-<div class="card" style="max-width:900px; margin:0 auto;">
-  <h2 style="font-size: 2rem; font-weight: 700;">CheckCheats: Инструмент для Администраторов Minecraft</h2>
-  <p style="margin-top: 1rem; color: var(--text-secondary);">
-    CheckCheats — это специализированный лаунчер-сканер, созданный для администраторов и модераторов серверов Minecraft. Наша цель — предоставить вам мощный и удобный инструмент для быстрой и эффективной проверки игроков на наличие читов, хаков и другого запрещённого ПО.
-  </p>
-  <h3 style="margin-top: 2rem; font-size: 1.5rem; font-weight: 600;">Как это работает?</h3>
-  <ul style="list-style-type: '✓  '; padding-left: 20px; color: var(--text-secondary); display: grid; gap: 10px; margin-top: 1rem;">
-    <li><strong>Быстрое сканирование:</strong> Проверка файловой системы по обновляемой базе сигнатур, включая скрытые файлы, инжекторы и макросы.</li>
-    <li><strong>Анализ процессов:</strong> Мониторинг запущенных приложений в реальном времени для выявления подозрительной активности параллельно с игрой.</li>
-    <li><strong>Специализация на Minecraft:</strong> Умный детект популярных чит-клиентов и модов (X-Ray, Baritone, Hitbox, AutoTotem и др.) в папках `.minecraft/mods` и других игровых директориях.</li>
-    <li><strong>Фильтрация шума:</strong> Система игнорирует системные файлы и папки VPN, фокусируясь на релевантных угрозах.</li>
-  </ul>
-  <h3 style="margin-top: 2rem; font-size: 1.5rem; font-weight: 600;">Ваши преимущества:</h3>
-  <ul style="list-style-type: '✓  '; padding-left: 20px; color: var(--text-secondary); display: grid; gap: 10px; margin-top: 1rem;">
-    <li><strong>Поддержание честной игры на вашем сервере.</strong></li>
-    <li><strong>Быстрые и точные проверки, экономящие время модераторов.</strong></li>
-    <li><strong>Надёжная HWID-привязка и система лицензирования.</strong></li>
-  </ul>
-  <div style="margin-top: 2.5rem; display: flex; gap: 20px; justify-content: center; align-items: center;">
-    <div class="value" style="font-size: 1.2rem;">Цена: <b>1 USDT</b></div>
-    <a class="btn" href="https://t.me/<%= botName %>?start=cc">Купить в Telegram</a>
-  </div>
+<%- include('layout') -%>
+<h1>Products</h1>
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <img src="/img/product1.jpg" class="card-img-top" alt="Product 1">
+            <div class="card-body">
+                <h5>Basic Scan</h5>
+                <p>$9.99/mo</p>
+                <a href="#" class="btn btn-primary">Buy</a>
+            </div>
+        </div>
+    </div>
+    <!-- Add more products -->
 </div>
