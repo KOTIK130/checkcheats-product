@@ -1,22 +1,20 @@
-<!-- views/index.ejs -->
-<style>
-.hero { text-align: center; padding: 100px 0; }
-.hero h1 { font-size: 3.5rem; font-weight: 800; background: linear-gradient(90deg, #60a5fa, #00b2ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.hero p { font-size: 1.2rem; color: var(--text-secondary); max-width: 600px; margin: 20px auto; }
-.hero .actions { margin-top: 40px; display: flex; justify-content: center; gap: 20px; }
-</style>
-
-<div class="hero">
-  <h1>CheckCheats: Надёжная Проверка Игроков на Читы</h1>
-  <p>
-    Инструмент для администраторов и модераторов серверов Minecraft. Быстрое сканирование, HWID-привязка и точные результаты для поддержания честной игры.
-  </p>
-  <div class="actions">
-    <a href="/products" class="btn btn-secondary">Подробнее о продукте</a>
-    <% if (user) { %>
-      <a href="/dashboard" class="btn">Начать проверку</a>
-    <% } else { %>
-      <a href="/login" class="btn">Начать проверку</a>
-    <% } %>
-  </div>
+<%- include('layout') -%>
+<div class="jumbotron text-center">
+    <h1>Welcome to CheckCheats</h1>
+    <p class="lead">Advanced anti-cheat system with remote verification.</p>
+    <a href="/register" class="btn btn-primary btn-lg">Get Started</a>
+</div>
+<div class="row">
+    <div class="col-md-4">
+        <h3>Secure Scanning</h3>
+        <p>Detect cheats remotely with user consent.</p>
+    </div>
+    <div class="col-md-4">
+        <h3>Admin Panel</h3>
+        <p>Full control for moderators.</p>
+    </div>
+    <div class="col-md-4">
+        <h3>Easy Setup</h3>
+        <p>Quick deployment and integration.</p>
+    </div>
 </div>
