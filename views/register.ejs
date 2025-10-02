@@ -1,13 +1,56 @@
-<!-- views/register.ejs -->
-<h1>Регистрация</h1>
-<div class="card" style="max-width:520px; margin:0 auto;">
-  <form method="post" action="/register">
-    <div style="display:grid; gap:10px;">
-      <input class="input" name="email" placeholder="Email" required autocomplete="email">
-      <input class="input" name="username" placeholder="Логин" required autocomplete="username">
-      <input class="input" type="password" name="password" placeholder="Пароль (мин. 6)" required autocomplete="new-password">
-      <% if (error) { %><div class="alert"><%= error %></div><% } %>
-      <button class="btn" type="submit">Создать</button>
+<%- include('layout') -%>
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3>Register</h3>
+            </div>
+            <div class="card-body">
+                <% if (error) { %>
+                    <div class="alert alert-danger">
+                        <% error.forEach(e => { %>
+                            <p><%= e.msg %></p>
+                        <% }); %>
+                    </div>
+                <% } %>
+                <form method="POST" action="/register">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required minlength="3">
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Register</button>
+                </form>
+                <p class="text-center mt-3">Already have an account? <a href="/login">Login</a></p>
+            </div>
+        </div>
     </div>
-  </form>
 </div>
+<script>
+    // Validation
+    const form = document.querySelector('form');
+    form.addEventListener('submit', (e) => {
+        const username = document.getElementById('username').value;
+        const email = document.getElementById('email').value;
+        const pass = document.getElementById('password').value;
+        if (username.length < 3) {
+            e.preventDefault();
+            alert('Username must be at least 3 characters');
+        }
+        if (!email.includes('@')) {
+            e.preventDefault();
+            alert('Invalid email');
+        }
+        if (pass.length < 6) {
+            e.preventDefault();
+            alert('Password must be at least 6 characters');
+        }
+    });
+</script>
