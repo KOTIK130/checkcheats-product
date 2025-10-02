@@ -1,407 +1,451 @@
-// server.js
-import 'dotenv/config'
-import express from 'express'
-import path from 'path'
-import crypto from 'crypto'
-import cookieSession from 'cookie-session'
-import bcrypt from 'bcryptjs'
-import pg from 'pg'
-import ejsLayouts from 'express-ejs-layouts'
+// server.js - Full Anti-Cheat Server with WebSocket Remote Scanning
+// Version 1.2.0 - Enhanced with DB, Rate Limiting, Error Handling
+// Author: KOTIK130 (with DAN tweaks)
 
-// НОВЫЕ ИМПОРТЫ ДЛЯ WEBSOCKET
-import http from 'http'
-import { WebSocketServer } from 'ws'
+// Core Modules
+const express = require('express');
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const { body, validationResult } = require('express-validator');
+const cookieParser = require('cookie-parser');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
+const { Server } = require('socket.io');
+const sqlite3 = require('sqlite3').verbose();
+const winston = require('winston');
 
-const { Pool } = pg
-const app = express()
-const __dirname = path.resolve()
-
-// ====== БД (PostgreSQL) ======
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-})
-
-// Создаём таблицы, если их нет
-async function setupDb() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      uid SERIAL UNIQUE,
-      email TEXT UNIQUE NOT NULL,
-      username TEXT UNIQUE NOT NULL,
-      passwordHash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'user',
-      createdAt TIMESTAMPTZ DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS licenses (
-      id SERIAL PRIMARY KEY,
-      key TEXT UNIQUE NOT NULL,
-      plan TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'unbound',
-      maxDevices INT NOT NULL DEFAULT 1,
-      expiresAt TIMESTAMPTZ NOT NULL,
-      createdAt TIMESTAMPTZ DEFAULT NOW(),
-      userId INT REFERENCES users(id)
-    );
-    CREATE TABLE IF NOT EXISTS devices (
-      id SERIAL PRIMARY KEY,
-      licenseId INT NOT NULL REFERENCES licenses(id),
-      hwid TEXT,
-      firstSeenAt TIMESTAMPTZ DEFAULT NOW(),
-      lastSeenAt TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE (licenseId, hwid)
-    );
-    CREATE TABLE IF NOT EXISTS payments (
-      id SERIAL PRIMARY KEY,
-      provider TEXT NOT NULL,
-      providerId TEXT UNIQUE NOT NULL,
-      status TEXT NOT NULL,
-      amount INT NOT NULL,
-      currency TEXT NOT NULL,
-      telegramId TEXT,
-      createdAt TIMESTAMPTZ DEFAULT NOW(),
-      userId INT,
-      licenseKey TEXT
-    );
-  `)
-}
-setupDb().catch(console.error)
-
-// ====== Middleware и шаблоны ======
-app.use(express.urlencoded({ extended: true }))
-app.use(express.json())
-app.use(express.static(path.join(__dirname, 'public')))
-app.set('views', path.join(__dirname, 'views'))
-app.set('view engine', 'ejs')
-app.use(ejsLayouts)
-app.set('layout', 'layout')
-
-app.use(cookieSession({ name:'ccsess', keys:[process.env.SESSION_SECRET||'dev'], maxAge:30*24*3600*1000 }))
-app.use((req, res, next) => { res.locals.user = req.session.user || null; next() })
-
-// ====== Helpers ======
-const toLocale = (d) => d ? new Date(d).toLocaleString() : ''
-const genKeyPart = () => crypto.randomBytes(3).toString('hex').toUpperCase().slice(0, 5)
-
-// ====== Routes ======
-app.get('/', (req, res) => res.render('index', { title: 'Главная' }))
-app.get('/products', (req, res) => {
-  res.render('products', {
-    title: 'Продукты',
-    price: process.env.PRODUCT_PRICE_USDT || '1',
-    botName: (process.env.TG_BOT_USERNAME || 'checkcheatsbuy_bot').replace(/^@/, '')
-  })
-})
-
-app.get('/login', (req, res) => res.render('login', { title: 'Вход', error: null }))
-app.post('/login', async (req, res) => {
-  const { login, password } = req.body;
-  // --- ИСПРАВЛЕНИЕ ЗДЕСЬ: ищем по email или username, игнорируя регистр ---
-  const { rows } = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)', [String(login)]);
-  const user = rows[0];
-
-  if (!user || !bcrypt.compareSync(password, user.passwordhash)) {
-    return res.render('login', { title: 'Вход', error: 'Неверные данные' });
-  }
-  req.session.user = { id: user.id, email: user.email, username: user.username, role: user.role };
-  res.redirect('/dashboard');
+// Logging Setup
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+    new winston.transports.Console({ format: winston.format.simple() })
+  ]
 });
-app.post('/logout', (req, res) => { req.session = null; res.redirect('/') })
 
-app.get('/register', (req, res) => res.render('register', { title: 'Регистрация', error: null }))
-app.post('/register', async (req, res) => {
-  const { email, username, password } = req.body
-  if (!email || !username || !password || password.length < 6)
-    return res.render('register', { title: 'Регистрация', error: 'Неверные данные' })
-  
-  const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1 OR username = $2', [String(email).toLowerCase(), username])
-  if (existing.length > 0)
-    return res.render('register', { title: 'Регистрация', error: 'Email или логин занят' })
-  
-  const hash = bcrypt.hashSync(password, 10)
-  const { rows: newUser } = await pool.query('INSERT INTO users (email, username, passwordHash) VALUES ($1, $2, $3) RETURNING id, role', [String(email).toLowerCase(), username, hash])
-  req.session.user = { id: newUser[0].id, email, username, role: newUser[0].role }
-  res.redirect('/dashboard')
-})
+// App Setup
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] },
+  pingInterval: 10000,
+  pingTimeout: 5000
+});
 
-// Middleware для проверки авторизации и роли админа
-function requireAuth(req, res, next) { if (!req.session.user) return res.redirect('/login'); next() }
-function requireAdmin(req, res, next) { if (req.session.user?.role !== 'admin') return res.status(403).send('Доступ запрещён'); next() }
+// Environment Config
+require('dotenv').config();
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-jwt-key-change-me';
+const DB_PATH = process.env.DB_PATH || 'checkcheats.db';
+const SESSION_TIMEOUT = parseInt(process.env.SESSION_TIMEOUT) || 3600000; // 1 hour
 
-// Функция для отрисовки дашборда
-async function renderDashboard(req, res, msg = null) {
-  const { rows: users } = await pool.query('SELECT * FROM users WHERE id = $1', [req.session.user.id]);
-  const user = users[0];
+// Middleware
+app.use(helmet()); // Security headers
+app.use(cors({ origin: "*", credentials: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser());
+app.use(express.static(path.join(__dirname, 'public')));
 
-  if (!user) {
-    req.session = null;
-    return res.redirect('/login');
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { error: 'Too many requests from this IP' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use('/api/', limiter);
+app.use('/auth/', limiter);
+
+// Database Setup (SQLite)
+let db;
+function initDB() {
+  db = new sqlite3.Database(DB_PATH);
+  db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      email TEXT,
+      role TEXT DEFAULT 'user',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      user_id INTEGER,
+      suspect_hwid TEXT,
+      moderator_socket_id TEXT,
+      suspect_socket_id TEXT,
+      results TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME DEFAULT (datetime('now', '+1 hour'))
+    )`);
+    logger.info('Database initialized');
+  });
+}
+initDB();
+
+// JWT Middleware
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1] || req.cookies.token;
+  if (!token) {
+    return res.status(401).json({ error: 'Access denied' });
   }
-
-  const { rows: lics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [user.id, 'active']);
-  const lic = lics[0];
-
-  let hwid = '', expiresAt = '', canDownload = false;
-  if (lic) {
-    const { rows: devices } = await pool.query('SELECT * FROM devices WHERE licenseId = $1', [lic.id]);
-    hwid = devices[0]?.hwid || '';
-    expiresAt = toLocale(lic.expiresat);
-    canDownload = lic.expiresat > new Date();
-  }
-
-  res.render('dashboard', {
-    title: 'Кабинет',
-    user: { ...user, createdAt: toLocale(user.createdat) },
-    hwid, expiresAt, canDownload,
-    downloadUrl: process.env.DOWNLOAD_URL || '#',
-    msg: msg
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid token' });
+    }
+    req.user = user;
+    next();
   });
 }
 
-app.get('/dashboard', requireAuth, (req, res) => renderDashboard(req, res));
+// Role Check Middleware
+function requireRole(role) {
+  return (req, res, next) => {
+    if (req.user.role !== role) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    next();
+  };
+}
 
-app.post('/key/activate', requireAuth, async (req, res) => {
-  const key = String(req.body.key || '').trim().toUpperCase();
-  const { rows: keyData } = await pool.query('SELECT * FROM licenses WHERE UPPER(key) = $1', [key]);
-  const newLic = keyData[0];
+// WebSocket Handling
+let activeSessions = new Map(); // code -> session data
 
-  if (!newLic) return renderDashboard(req, res, 'Ошибка: Ключ не найден.');
-  if (newLic.status !== 'unbound') return renderDashboard(req, res, 'Ошибка: Ключ уже был использован.');
-  if (newLic.expiresat < new Date()) return renderDashboard(req, res, 'Ошибка: Срок действия этого ключа истёк.');
-  if (!newLic.createdat) return renderDashboard(req, res, 'Ошибка: Неверный формат ключа. Обратитесь в поддержку.');
-
-  const { rows: currentLics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [req.session.user.id, 'active']);
-  const currentLic = currentLics[0];
-
-  if (currentLic) {
-    const durationMs = newLic.expiresat.getTime() - newLic.createdat.getTime();
-    const newExpiresAt = new Date(currentLic.expiresat.getTime() + durationMs);
-    await pool.query('UPDATE licenses SET expiresAt = $1 WHERE id = $2', [newExpiresAt, currentLic.id]);
-    await pool.query('UPDATE licenses SET status = $1, userId = $2 WHERE id = $3', ['used', req.session.user.id, newLic.id]);
-  } else {
-    await pool.query('UPDATE licenses SET userId = $1, status = $2 WHERE id = $3', [req.session.user.id, 'active', newLic.id]);
-    const { rows: devices } = await pool.query('SELECT id FROM devices WHERE licenseId = $1', [newLic.id]);
-    if (devices.length === 0) await pool.query('INSERT INTO devices (licenseId) VALUES ($1)', [newLic.id]);
-  }
+io.on('connection', (socket) => {
+  logger.info(`User connected: ${socket.id}`);
   
-  res.redirect('/dashboard');
-});
-
-app.post('/hwid/reset', requireAuth, async (req, res) => {
-  const { rows } = await pool.query('SELECT id FROM licenses WHERE userId = $1 AND status = $2', [req.session.user.id, 'active'])
-  if (rows[0]) await pool.query('UPDATE devices SET hwid = NULL WHERE licenseId = $1', [rows[0].id])
-  res.redirect('/dashboard')
-})
-
-app.get('/change-password', requireAuth, (req, res) => {
-  res.render('change-password', { title: 'Смена пароля', msg: null })
-})
-
-app.post('/change-password', requireAuth, async (req, res) => {
-  const { oldPassword, newPassword } = req.body
-  if (!oldPassword || !newPassword || newPassword.length < 6) {
-    return res.render('change-password', { title: 'Смена пароля', msg: 'Неверные данные' })
-  }
-  const { rows } = await pool.query('SELECT passwordhash FROM users WHERE id = $1', [req.session.user.id])
-  const user = rows[0]
-  if (!bcrypt.compareSync(oldPassword, user.passwordhash)) {
-    return res.render('change-password', { title: 'Смена пароля', msg: 'Старый пароль неверный' })
-  }
-  const newHash = bcrypt.hashSync(newPassword, 10)
-  await pool.query('UPDATE users SET passwordhash = $1 WHERE id = $2', [newHash, req.session.user.id])
-  res.render('change-password', { title: 'Смена пароля', msg: 'Пароль успешно изменён!' })
-})
-
-// ====== API для бота ======
-app.post('/api/bot/new-key', async (req, res) => {
-  const secret = req.headers['x-api-key'] || req.body?.secret
-  if ((secret || '') !== (process.env.BOT_WEBHOOK_SECRET || ''))
-    return res.status(401).json({ error: 'unauthorized' })
-  
-  const { key, plan = 'LIFETIME', expiresAt, maxDevices = 1, invoiceId, amount = 0, currency = 'USDT', telegramId } = req.body || {}
-  if (!key || !expiresAt || !invoiceId) return res.status(400).json({ error: 'bad_request' })
-  
-  try {
-    const expires = new Date(Number(expiresAt))
-    await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices, createdAt) VALUES ($1, $2, $3, $4, NOW())', [String(key).toUpperCase(), plan, expires, Number(maxDevices)])
-    await pool.query('INSERT INTO payments (provider, providerId, status, amount, currency, telegramId, licenseKey) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      ['cryptobot', String(invoiceId), 'paid', Number(amount), currency, String(telegramId || ''), String(key).toUpperCase()])
-    return res.json({ ok: true })
-  } catch (e) {
-    return res.status(409).json({ error: 'exists' })
-  }
-})
-
-// ====== API ДЛЯ ЛАУНЧЕРА ======
-app.post('/api/launcher/login', async (req, res) => {
-  const { email, password, hwid } = req.body;
-  if (!email || !password || !hwid) {
-    return res.status(400).json({ ok: false, reason: 'bad_request' });
-  }
-
-  const { rows: users } = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)', [String(email)]);
-  const user = users[0];
-  if (!user || !bcrypt.compareSync(password, user.passwordhash)) {
-    return res.status(401).json({ ok: false, reason: 'invalid_credentials' });
-  }
-
-  const { rows: lics } = await pool.query('SELECT * FROM licenses WHERE userId = $1 AND status = $2 ORDER BY expiresat DESC LIMIT 1', [user.id, 'active']);
-  const lic = lics[0];
-  if (!lic) {
-    return res.status(403).json({ ok: false, reason: 'no_license' });
-  }
-  if (lic.expiresat < new Date()) {
-    return res.status(403).json({ ok: false, reason: 'expired' });
-  }
-
-  const { rows: devices } = await pool.query('SELECT * FROM devices WHERE licenseId = $1', [lic.id]);
-  const existingDevice = devices.find(d => d.hwid === hwid);
-  if (existingDevice) {
-    return res.json({ ok: true, deviceId: existingDevice.id, plan: lic.plan, expiresAt: lic.expiresat.getTime() });
-  }
-
-  const emptySlot = devices.find(d => !d.hwid);
-  if (emptySlot) {
-    await pool.query('UPDATE devices SET hwid = $1, lastSeenAt = NOW() WHERE id = $2', [hwid, emptySlot.id]);
-    return res.json({ ok: true, deviceId: emptySlot.id, plan: lic.plan, expiresAt: lic.expiresat.getTime() });
-  } else {
-    return res.status(409).json({ ok: false, reason: 'hwid_limit' });
-  }
-});
-
-// ====== Админ-панель ======
-app.get('/admin', requireAuth, requireAdmin, (req, res) => {
-  res.render('admin', { title: 'Админка', user: null, msg: null })
-})
-
-app.post('/admin/find-user', requireAuth, requireAdmin, async (req, res) => {
-  const { uid } = req.body
-  const { rows } = await pool.query('SELECT id, uid, email, username, role, createdAt FROM users WHERE uid = $1', [Number(uid)])
-  const foundUser = rows[0]
-  if (foundUser) {
-    foundUser.createdAt = toLocale(foundUser.createdat)
-  }
-  res.render('admin', { title: 'Админка', user: foundUser, msg: foundUser ? null : 'Пользователь не найден' })
-})
-
-app.post('/admin/create-key', requireAuth, requireAdmin, async (req, res) => {
-  const { days = 30, maxDevices = 1, plan = 'CUSTOM' } = req.body
-  const key = `CheckCheats-${genKeyPart()}-${genKeyPart()}`
-  const expiresAt = new Date(Date.now() + Number(days) * 24 * 3600 * 1000)
-  await pool.query('INSERT INTO licenses (key, plan, expiresAt, maxDevices, createdAt) VALUES ($1, $2, $3, $4, NOW())', [key, plan, expiresAt, Number(maxDevices)])
-  res.render('admin', { title: 'Админка', user: null, msg: `Создан ключ: ${key}` })
-})
-
-app.post('/admin/reset-subscription', requireAuth, requireAdmin, async (req, res) => {
-  const { uid } = req.body;
-  const { rows: users } = await pool.query('SELECT id FROM users WHERE uid = $1', [Number(uid)]);
-  const user = users[0];
-
-  if (!user) {
-    return res.render('admin', { title: 'Админка', user: null, msg: `Пользователь с UID ${uid} не найден.` });
-  }
-
-  const { rows: lics } = await pool.query('SELECT id FROM licenses WHERE userId = $1 AND status = $2', [user.id, 'active']);
-  if (lics.length > 0) {
-    const licenseIds = lics.map(l => l.id);
-    await pool.query('DELETE FROM devices WHERE licenseId = ANY($1::int[])', [licenseIds]);
-    await pool.query('DELETE FROM licenses WHERE id = ANY($1::int[])', [licenseIds]);
-    res.render('admin', { title: 'Админка', user: null, msg: `Подписка для пользователя с UID ${uid} успешно сброшена.` });
-  } else {
-    res.render('admin', { title: 'Админка', user: null, msg: `У пользователя с UID ${uid} нет активной подписки.` });
-  }
-});
-
-
-// =======================================================================
-//                НОВЫЙ БЛОК: WEBSOCKET СЕРВЕР ДЛЯ ПРОВЕРОК
-// =======================================================================
-
-// 1. Создаем стандартный HTTP сервер из нашего Express приложения.
-const server = http.createServer(app);
-
-// 2. Создаем WebSocket сервер (wss) поверх HTTP сервера.
-const wss = new WebSocketServer({ server });
-
-// 3. Хранилища для управления подключениями.
-const sessions = new Map();
-const moderators = new Map();
-
-// 4. Обработчик для новых подключений.
-wss.on('connection', ws => {
-    console.log('[WebSocket] Новый клиент подключился.');
-    let sessionCode = null; 
-
-    ws.on('message', message => {
-        try {
-            const data = JSON.parse(message);
-            console.log('[WebSocket] Получено сообщение:', data);
-
-            switch (data.type) {
-                case 'REGISTER_SUSPECT':
-                    sessionCode = Math.floor(100000 + Math.random() * 900000).toString();
-                    sessions.set(sessionCode, ws);
-                    ws.send(JSON.stringify({ type: 'SESSION_CREATED', code: sessionCode }));
-                    console.log(`[WebSocket] Подозреваемый зарегистрирован с кодом ${sessionCode}`);
-                    break;
-
-                case 'INITIATE_SCAN':
-                    const targetCode = data.code;
-                    const suspectWs = sessions.get(targetCode);
-                    if (suspectWs) {
-                        moderators.set(targetCode, ws);
-                        suspectWs.send(JSON.stringify({ type: 'SCAN_REQUEST' }));
-                        console.log(`[WebSocket] Запрос на сканирование отправлен для кода ${targetCode}`);
-                    } else {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'Клиент с таким кодом не найден.' }));
-                    }
-                    break;
-
-                case 'SCAN_ACCEPTED':
-                    // Можно добавить логику, если нужно
-                    break;
-                
-                case 'SCAN_DECLINED':
-                    if (sessionCode) {
-                        const moderatorWs = moderators.get(sessionCode);
-                        if (moderatorWs) {
-                            moderatorWs.send(JSON.stringify({ type: 'SCAN_DECLINED' }));
-                            moderators.delete(sessionCode);
-                        }
-                    }
-                    break;
-
-                case 'SCAN_RESULTS':
-                    if (sessionCode) {
-                        const moderatorWs = moderators.get(sessionCode);
-                        if (moderatorWs) {
-                            moderatorWs.send(JSON.stringify({ type: 'SCAN_RESULTS', results: data.results }));
-                            console.log(`[WebSocket] Результаты для кода ${sessionCode} отправлены модератору`);
-                        }
-                    }
-                    break;
-            }
-        } catch (error) {
-            console.error('[WebSocket] Ошибка обработки сообщения:', error);
+  socket.on('join-session', (data) => {
+    const { code, type, hwid } = data;
+    logger.info(`Join attempt: code=${code}, type=${type}, hwid=${hwid}, socket=${socket.id}`);
+    
+    if (!code || !type) {
+      socket.emit('error', { message: 'Invalid data' });
+      return;
+    }
+    
+    db.get('SELECT * FROM sessions WHERE code = ? AND expires_at > datetime("now")', [code], (err, session) => {
+      if (err) {
+        logger.error(err);
+        socket.emit('error', { message: 'DB error' });
+        return;
+      }
+      if (!session) {
+        socket.emit('error', { message: 'Session not found or expired' });
+        return;
+      }
+      
+      if (type === 'suspect') {
+        if (session.suspect_socket_id) {
+          socket.emit('error', { message: 'Suspect already connected' });
+          return;
         }
-    });
-
-    ws.on('close', () => {
-        console.log('[WebSocket] Клиент отключился.');
-        if (sessionCode) {
-            sessions.delete(sessionCode);
-            const moderatorWs = moderators.get(sessionCode);
-            if (moderatorWs) {
-                 moderatorWs.send(JSON.stringify({ type: 'ERROR', message: 'Проверяемый пользователь отключился.' }));
-            }
-            moderators.delete(sessionCode);
-            console.log(`[WebSocket] Сессия ${sessionCode} закрыта.`);
+        db.run('UPDATE sessions SET suspect_socket_id = ? WHERE code = ?', [socket.id, code]);
+        activeSessions.set(code, { ...session, suspectSocket: socket });
+        socket.emit('session-joined', { status: 'connected', code });
+      } else if (type === 'moderator') {
+        if (session.moderator_socket_id) {
+          socket.emit('error', { message: 'Moderator already connected' });
+          return;
         }
+        db.run('UPDATE sessions SET moderator_socket_id = ? WHERE code = ?', [socket.id, code]);
+        activeSessions.set(code, { ...session, moderatorSocket: socket });
+        socket.emit('session-ready', { status: 'ready', code });
+      }
     });
+  });
+
+  socket.on('request-scan', (code) => {
+    logger.info(`Scan request for code: ${code}, from socket: ${socket.id}`);
+    const session = activeSessions.get(code);
+    if (session && session.suspectSocket) {
+      session.suspectSocket.emit('scan-request', { from: 'moderator', code });
+    } else {
+      socket.emit('error', { message: 'No suspect connected' });
+    }
+  });
+
+  socket.on('scan-allowed', (code) => {
+    logger.info(`Scan allowed for code: ${code}`);
+    const session = activeSessions.get(code);
+    if (session) {
+      session.suspectSocket.emit('start-scan', { code });
+      db.run('UPDATE sessions SET status = "scanning" WHERE code = ?', [code]);
+    }
+  });
+
+  socket.on('scan-results', (data) => {
+    const { code, results } = data;
+    logger.info(`Results received for code: ${code}, results count: ${results.length}`);
+    const session = activeSessions.get(code);
+    if (session && session.moderatorSocket) {
+      session.moderatorSocket.emit('receive-results', { code, results });
+      db.run('UPDATE sessions SET results = ?, status = "completed" WHERE code = ?', [JSON.stringify(results), code]);
+      session.results = results;
+    }
+  });
+
+  socket.on('disconnect', () => {
+    logger.info(`User disconnected: ${socket.id}`);
+    // Cleanup: find sessions with this socket and expire them
+    for (let [code, session] of activeSessions.entries()) {
+      if (session.suspectSocket?.id === socket.id || session.moderatorSocket?.id === socket.id) {
+        db.run('UPDATE sessions SET status = "expired" WHERE code = ?', [code]);
+        activeSessions.delete(code);
+      }
+    }
+  });
+
+  socket.on('error', (err) => {
+    logger.error(`Socket error: ${err}`);
+  });
 });
 
+// Routes - Public
+app.get('/', (req, res) => {
+  res.render('index', { title: 'CheckCheats Home' });
+});
 
-// ====== ЗАПУСК СЕРВЕРА ======
-const PORT = process.env.PORT || 3000
-// ВАЖНО: Заменяем app.listen на server.listen, чтобы WebSocket тоже запустился
-server.listen(PORT, () => console.log(`Сайт и WebSocket сервер запущены на порту ${PORT}`))
+app.get('/login', (req, res) => {
+  res.render('login', { title: 'Login', error: null });
+});
+
+app.get('/register', (req, res) => {
+  res.render('register', { title: 'Register', error: null });
+});
+
+app.get('/products', authenticateToken, (req, res) => {
+  res.render('products', { title: 'Products', user: req.user });
+});
+
+// Auth Routes
+app.post('/register',
+  [
+    body('username').isLength({ min: 3 }).trim().escape(),
+    body('email').isEmail().normalizeEmail(),
+    body('password').isLength({ min: 6 })
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.render('register', { title: 'Register', error: errors.array() });
+    }
+
+    const { username, email, password } = req.body;
+    try {
+      const hashed = await bcrypt.hash(password, 12);
+      db.run('INSERT INTO users (username, email, password) VALUES (?, ?, ?)', [username, email, hashed], function(err) {
+        if (err) {
+          logger.error(err);
+          return res.render('register', { title: 'Register', error: [{ msg: 'Username already exists' }] });
+        }
+        logger.info(`User registered: ${username}`);
+        res.redirect('/login');
+      });
+    } catch (err) {
+      logger.error(err);
+      res.status(500).render('register', { title: 'Register', error: [{ msg: 'Server error' }] });
+    }
+  }
+);
+
+app.post('/login',
+  [
+    body('username').trim().escape(),
+    body('password').notEmpty()
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.render('login', { title: 'Login', error: errors.array() });
+    }
+
+    const { username, password } = req.body;
+    db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
+      if (err || !user) {
+        logger.warn(`Login failed for: ${username}`);
+        return res.render('login', { title: 'Login', error: [{ msg: 'Invalid credentials' }] });
+      }
+
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) {
+        logger.warn(`Login failed for: ${username}`);
+        return res.render('login', { title: 'Login', error: [{ msg: 'Invalid credentials' }] });
+      }
+
+      const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+      res.cookie('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
+      logger.info(`User logged in: ${username}`);
+      res.redirect('/dashboard');
+    });
+  }
+);
+
+// Protected Routes
+app.get('/dashboard', authenticateToken, (req, res) => {
+  res.render('dashboard', { title: 'Dashboard', user: req.user });
+});
+
+app.get('/admin', authenticateToken, requireRole('admin'), (req, res) => {
+  db.all('SELECT * FROM sessions WHERE status != "expired" ORDER BY created_at DESC', (err, sessions) => {
+    if (err) {
+      logger.error(err);
+      return res.status(500).render('admin', { title: 'Admin', error: 'DB error', sessions: [] });
+    }
+    res.render('admin', { title: 'Admin Panel', user: req.user, sessions });
+  });
+});
+
+app.get('/change-password', authenticateToken, (req, res) => {
+  res.render('change-password', { title: 'Change Password', error: null, user: req.user });
+});
+
+app.post('/change-password',
+  [
+    body('oldPassword').notEmpty(),
+    body('newPassword').isLength({ min: 6 }),
+    body('confirmPassword').custom((value, { req }) => value === req.body.newPassword)
+  ],
+  authenticateToken,
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.render('change-password', { title: 'Change Password', error: errors.array(), user: req.user });
+    }
+
+    const { oldPassword, newPassword } = req.body;
+    db.get('SELECT * FROM users WHERE id = ?', [req.user.id], async (err, user) => {
+      if (err || !user) {
+        return res.status(500).render('change-password', { title: 'Change Password', error: [{ msg: 'User not found' }], user: req.user });
+      }
+
+      const validOld = await bcrypt.compare(oldPassword, user.password);
+      if (!validOld) {
+        return res.render('change-password', { title: 'Change Password', error: [{ msg: 'Invalid old password' }], user: req.user });
+      }
+
+      const hashedNew = await bcrypt.hash(newPassword, 12);
+      db.run('UPDATE users SET password = ? WHERE id = ?', [hashedNew, req.user.id], (err) => {
+        if (err) {
+          logger.error(err);
+          return res.render('change-password', { title: 'Change Password', error: [{ msg: 'Update failed' }], user: req.user });
+        }
+        logger.info(`Password changed for user: ${req.user.username}`);
+        res.redirect('/dashboard');
+      });
+    });
+  }
+);
+
+// API Routes for Sessions
+app.post('/api/generate-code', authenticateToken, requireRole('admin'),
+  (req, res) => {
+    const code = uuidv4().slice(0, 8).toUpperCase();
+    db.run('INSERT INTO sessions (id, code) VALUES (?, ?)', [uuidv4(), code], function(err) {
+      if (err) {
+        logger.error(err);
+        return res.status(500).json({ error: 'Failed to generate code' });
+      }
+      logger.info(`Code generated: ${code} for user ${req.user.username}`);
+      res.json({ code, message: 'Code generated successfully' });
+    });
+  }
+);
+
+app.get('/api/sessions/:code', authenticateToken, requireRole('admin'),
+  (req, res) => {
+    const { code } = req.params;
+    db.get('SELECT * FROM sessions WHERE code = ? AND status != "expired"', [code], (err, session) => {
+      if (err) {
+        logger.error(err);
+        return res.status(500).json({ error: 'DB error' });
+      }
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+      res.json({ session });
+    });
+  }
+);
+
+// Logout
+app.post('/logout', (req, res) => {
+  res.clearCookie('token');
+  res.redirect('/');
+});
+
+// Error Handling
+app.use((err, req, res, next) => {
+  logger.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+app.use((req, res) => {
+  res.status(404).render('404', { title: 'Not Found' });
+});
+
+// View Engine
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// Health Check
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Server Start
+server.listen(PORT, () => {
+  logger.info(`Server running on port ${PORT}`);
+  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// Graceful Shutdown
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, closing server');
+  db.close((err) => {
+    if (err) logger.error(err);
+    process.exit(0);
+  });
+  server.close(() => process.exit(0));
+});
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT received, closing server');
+  db.close((err) => {
+    if (err) logger.error(err);
+    process.exit(0);
+  });
+  server.close(() => process.exit(0));
+});
+
+// Cleanup expired sessions every 5 min
+setInterval(() => {
+  db.run('DELETE FROM sessions WHERE expires_at < datetime("now")', (err) => {
+    if (err) logger.error(err);
+    else logger.info('Cleaned expired sessions');
+  });
+  // Clear activeSessions
+  for (let [code] of activeSessions.entries()) {
+    // Simulate check
+    activeSessions.delete(code); // Placeholder for real check
+  }
+}, 5 * 60 * 1000);
+
+// Export for testing
+module.exports = { app, server, io, db, logger };
