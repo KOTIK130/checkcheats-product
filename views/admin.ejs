@@ -1,39 +1,98 @@
-<!-- views/admin.ejs -->
-<h1>Админ-панель</h1>
-<div class="card" style="max-width: 1000px; margin: 0 auto; display: grid; gap: 20px;">
-  <div>
-    <h2>Поиск пользователя по UID</h2>
-    <form method="post" action="/admin/find-user" style="display: flex; gap: 10px;">
-      <input class="input" name="uid" placeholder="UID" required>
-      <button class="btn" type="submit">Найти</button>
-    </form>
-    <% if (locals.user && user) { %>
-      <div style="margin-top: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;">
-        <p><strong>UID:</strong> <%= user.uid %></p>
-        <p><strong>Логин:</strong> <%= user.username %></p>
-        <p><strong>Email:</strong> <%= user.email %></p>
-        <p><strong>Роль:</strong> <%= user.role %></p>
-        <p><strong>Дата рег.:</strong> <%= user.createdAt %></p>
-      </div>
-    <% } %>
-  </div>
-  <hr class="sep">
-  <div>
-    <h2>Создать ключ</h2>
-    <form method="post" action="/admin/create-key" style="display: flex; gap: 10px; align-items: center;">
-      <input class="input" name="days" placeholder="Срок (дней)" value="30" type="number">
-      <input class="input" name="maxDevices" placeholder="Устройств" value="1" type="number">
-      <input class="input" name="plan" placeholder="План" value="CUSTOM">
-      <button class="btn" type="submit">Создать</button>
-    </form>
-  </div>
-  <hr class="sep">
-  <div>
-    <h2>Сброс подписки по UID</h2>
-    <form method="post" action="/admin/reset-subscription" style="display: flex; gap: 10px;">
-      <input class="input" name="uid" placeholder="UID пользователя" required>
-      <button class="btn" type="submit" style="background: #e53e3e;">Сбросить подписку</button>
-    </form>
-  </div>
-  <% if (msg) { %><div class="alert"><%= msg %></div><% } %>
+<%- include('layout') -%>
+<div class="row">
+    <div class="col-md-12">
+        <h1>Admin Panel</h1>
+        <button id="genCode" class="btn btn-success mb-3">Generate Session Code</button>
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5>Current Code</h5>
+                <input type="text" id="codeInput" class="form-control" placeholder="Enter or generated code" readonly>
+                <button id="checkBtn" class="btn btn-primary mt-2">Request Scan</button>
+            </div>
+        </div>
+        <div id="results" class="card">
+            <div class="card-header">
+                <h5>Scan Results</h5>
+            </div>
+            <div class="card-body">
+                <div id="resultsContent">No results yet.</div>
+            </div>
+        </div>
+        <h2 class="mt-4">Active Sessions</h2>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% sessions.forEach(session => { %>
+                    <tr>
+                        <td><%= session.code %></td>
+                        <td><%= session.status %></td>
+                        <td><%= new Date(session.created_at).toLocaleString() %></td>
+                        <td><button class="btn btn-sm btn-info" onclick="viewResults('<%= session.code %>')">View</button></td>
+                    </tr>
+                <% }); %>
+            </tbody>
+        </table>
+    </div>
 </div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    let currentCode = '';
+
+    document.getElementById('genCode').onclick = async () => {
+        try {
+            const res = await fetch('/api/generate-code', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${document.cookie.split('token=')[1]?.split(';')[0] || ''}` },
+                credentials: 'include'
+            });
+            const { code } = await res.json();
+            if (code) {
+                currentCode = code;
+                document.getElementById('codeInput').value = code;
+                socket.emit('join-session', { code, type: 'moderator' });
+                alert('Code generated: ' + code);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Failed to generate code');
+        }
+    };
+
+    document.getElementById('checkBtn').onclick = () => {
+        const code = document.getElementById('codeInput').value;
+        if (!code) return alert('Enter a code first');
+        socket.emit('request-scan', code);
+    };
+
+    socket.on('receive-results', (data) => {
+        const { results } = data;
+        const content = document.getElementById('resultsContent');
+        if (results && results.length > 0) {
+            content.innerHTML = '<ul>' + results.map(r => `<li><strong>${r.file}</strong>: ${r.detected ? 'DETECTED (Cheat!)' : 'Clean'}</li>`).join('') + '</ul>';
+        } else {
+            content.innerHTML = 'No cheats detected.';
+        }
+    });
+
+    function viewResults(code) {
+        // Fetch from API
+        fetch(`/api/sessions/${code}`, {
+            headers: { 'Authorization': `Bearer ${document.cookie.split('token=')[1]?.split(';')[0] || ''}` }
+        }).then(res => res.json()).then(data => {
+            if (data.session.results) {
+                const results = JSON.parse(data.session.results);
+                // Display similar to above
+                alert('Results for ' + code + ': ' + JSON.stringify(results, null, 2));
+            }
+        });
+    }
+</script>
