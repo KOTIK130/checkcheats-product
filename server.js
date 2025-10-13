@@ -256,7 +256,20 @@ app.post('/register',
           return res.render('register', { title: 'Register', error: [{ msg: 'Username already exists' }] });
         }
         logger.info(`User registered: ${username}`);
-        res.redirect('/login');
+        
+        // Auto-login: create JWT and redirect to dashboard
+        const userId = this.lastID;
+        const token = jwt.sign(
+          { id: userId, username, email, role: 'user' },
+          process.env.JWT_SECRET || 'your_jwt_secret_key_here',
+          { expiresIn: '7d' }
+        );
+        res.cookie('token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+        res.redirect('/dashboard');
       });
     } catch (err) {
       logger.error(err);
