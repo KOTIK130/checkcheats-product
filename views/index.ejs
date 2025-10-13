@@ -15,12 +15,22 @@
     }
     
     .hero {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #1565c0 0%, #1976d2 100%);
         color: white;
-        padding: 100px 0;
+        padding: 120px 0;
         text-align: center;
         position: relative;
         overflow: hidden;
+        border-radius: 0 0 50px 50px;
+        box-shadow: 0 10px 50px rgba(13, 71, 161, 0.5);
+    }
+    
+    .hero-logo {
+        width: 150px;
+        height: 150px;
+        margin: 0 auto 30px;
+        animation: float 3s ease-in-out infinite;
+        filter: drop-shadow(0 10px 30px rgba(255,255,255,0.3));
     }
     
     .hero::before {
@@ -119,7 +129,7 @@
     }
     
     .stats-section {
-        background: linear-gradient(135deg, #0077ff 0%, #0099ff 100%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         padding: 60px 0;
         margin: 60px 0;
