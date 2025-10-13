@@ -1,17 +1,87 @@
 <%- include('header') -%>
-<h1>Products</h1>
-<div class="row">
-    <div class="col-md-4">
-        <div class="card">
-            <img src="/img/product1.jpg" class="card-img-top" alt="Product 1">
-            <div class="card-body">
-                <h5>Basic Scan</h5>
-                <p>$9.99/mo</p>
-                <a href="#" class="btn btn-primary">Buy</a>
+
+<style>
+    .product-card {
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        margin: 20px 0;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        transition: all 0.4s ease;
+        text-align: center;
+    }
+    
+    .product-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 20px 60px rgba(0, 119, 255, 0.3);
+    }
+    
+    .price {
+        font-size: 3rem;
+        font-weight: 800;
+        color: #0077ff;
+        margin: 20px 0;
+    }
+    
+    .btn-buy {
+        background: linear-gradient(135deg, #0077ff 0%, #0099ff 100%);
+        border: none;
+        padding: 15px 40px;
+        font-size: 1.2rem;
+        border-radius: 50px;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-buy:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0, 119, 255, 0.5);
+    }
+    
+    .features-list {
+        list-style: none;
+        padding: 0;
+        margin: 30px 0;
+    }
+    
+    .features-list li {
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .features-list li:before {
+        content: '✓ ';
+        color: #0077ff;
+        font-weight: bold;
+        margin-right: 10px;
+    }
+</style>
+
+<div class="container my-5">
+    <h1 class="text-center mb-5" style="font-size: 3rem; font-weight: 800;">🛒 Our Products</h1>
+    
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="product-card">
+                <h2>🛡️ CheckCheats Premium</h2>
+                <div class="price">$1</div>
+                <p class="text-muted">One-time payment • Lifetime access</p>
+                
+                <ul class="features-list">
+                    <li>Unlimited remote scans</li>
+                    <li>Real-time cheat detection</li>
+                    <li>HWID tracking system</li>
+                    <li>Admin panel access</li>
+                    <li>Desktop applications included</li>
+                    <li>24/7 support</li>
+                    <li>Regular updates</li>
+                </ul>
+                
+                <a href="#" class="btn btn-primary btn-buy">Buy Now for $1</a>
+                
+                <p class="text-muted mt-3">🔒 Secure payment • Instant delivery</p>
             </div>
         </div>
     </div>
-    <!-- Add more products -->
 </div>
 
 <%- include('footer') %>
