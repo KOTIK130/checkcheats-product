@@ -1,0 +1,55 @@
+<%- include('header') %>
+
+<style>
+    .error-container {
+        min-height: 60vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+    }
+    
+    .error-code {
+        font-size: 8rem;
+        font-weight: 900;
+        background: linear-gradient(135deg, #0077ff 0%, #00ccff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin: 0;
+    }
+    
+    .error-message {
+        font-size: 2rem;
+        color: #333;
+        margin: 20px 0;
+    }
+    
+    .btn-home {
+        background: linear-gradient(135deg, #0077ff 0%, #0099ff 100%);
+        border: none;
+        padding: 15px 40px;
+        font-size: 1.2rem;
+        border-radius: 50px;
+        color: white;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-home:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0, 119, 255, 0.5);
+        color: white;
+    }
+</style>
+
+<div class="container error-container">
+    <div>
+        <h1 class="error-code">404</h1>
+        <p class="error-message">Page Not Found</p>
+        <p class="text-muted mb-4">The page you're looking for doesn't exist.</p>
+        <a href="/" class="btn-home">🏠 Go Home</a>
+    </div>
+</div>
+
+<%- include('footer') %>
