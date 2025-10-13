@@ -1,158 +1,229 @@
 ﻿<%- include('header') -%>
-<div class="row fade-in-up">
-    <div class="col-md-3 mb-4">
-        <div class="card text-center">
-            <div class="card-body">
-                <div class="mb-3">
-                    <div style="width: 100px; height: 100px; margin: 0 auto; border-radius: 50%; background: linear-gradient(135deg, #4A90E2, #357ABD); display: flex; align-items: center; justify-content: center;">
-                        <i class="fas fa-user fa-3x" style="color: white;"></i>
-                    </div>
-                </div>
-                <h4 class="mb-1"><%= user.username %></h4>
-                <p class="text-secondary mb-3">
-                    <i class="fas fa-shield-alt"></i> <%= user.role === 'admin' ? 'Администратор' : 'Пользователь' %>
-                </p>
-                <div class="d-grid gap-2">
-                    <a href="/change-password" class="btn btn-primary">
-                        <i class="fas fa-key"></i> Сменить пароль
-                    </a>
-                    <a href="/logout" class="btn btn-danger">
-                        <i class="fas fa-sign-out-alt"></i> Выход
-                    </a>
-                </div>
-            </div>
+<div class="scanner-container">
+    <div class="scanner-header">
+        <h2><i class="fas fa-search"></i> PLAYER SCANNER</h2>
+        <p>Проверка игроков на читы</p>
+    </div>
+    
+    <div class="search-section">
+        <div class="search-box">
+            <input type="text" id="playerSearch" placeholder="Введите никнейм игрока..." class="form-control">
+            <button onclick="searchPlayer()" class="btn btn-primary">
+                <i class="fas fa-search"></i> Найти
+            </button>
         </div>
     </div>
-    <div class="col-md-9">
-        <div class="row mb-4">
-            <div class="col-md-4 mb-3">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <div class="icon me-3">
-                                <i class="fas fa-check-circle"></i>
-                            </div>
-                            <div>
-                                <h6 class="text-secondary mb-1">Активные сессии</h6>
-                                <h3 class="mb-0"><%= sessions.length %></h3>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+
+    <div class="players-list">
+        <h5><i class="fas fa-list"></i> Недавние проверки</h5>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Игрок</th>
+                        <th>Статус</th>
+                        <th>Дата проверки</th>
+                        <th>Действие</th>
+                    </tr>
+                </thead>
+                <tbody id="playersTable">
+                    <% if (sessions && sessions.length > 0) { %>
+                        <% sessions.forEach(s => { %>
+                            <tr>
+                                <td><strong><%= s.suspectId || 'Player' %></strong></td>
+                                <td>
+                                    <% if (s.status === 'completed') { %>
+                                        <span class="badge status-clean">CLEAN</span>
+                                    <% } else if (s.status === 'active') { %>
+                                        <span class="badge status-scanning">SCANNING</span>
+                                    <% } else { %>
+                                        <span class="badge status-pending">PENDING</span>
+                                    <% } %>
+                                </td>
+                                <td><%= new Date(s.createdAt).toLocaleString('ru') %></td>
+                                <td>
+                                    <button class="btn btn-sm btn-info" onclick="viewDetails('<%= s.code %>')">
+                                        <i class="fas fa-eye"></i> Детали
+                                    </button>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    <% } else { %>
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">
+                                <i class="fas fa-inbox fa-2x my-3"></i><br>
+                                Нет проверок
+                            </td>
+                        </tr>
+                    <% } %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="quick-stats">
+        <div class="stat-card">
+            <div class="stat-icon bg-success">
+                <i class="fas fa-check-circle"></i>
             </div>
-            <div class="col-md-4 mb-3">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <div class="icon me-3">
-                                <i class="fas fa-clock"></i>
-                            </div>
-                            <div>
-                                <h6 class="text-secondary mb-1">Последний вход</h6>
-                                <h6 class="mb-0"><%= user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('ru') : 'Сегодня' %></h6>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <div class="icon me-3">
-                                <i class="fas fa-envelope"></i>
-                            </div>
-                            <div>
-                                <h6 class="text-secondary mb-1">Email</h6>
-                                <h6 class="mb-0"><%= user.email %></h6>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div class="stat-info">
+                <h4><%= sessions.filter(s => s.status === 'completed').length %></h4>
+                <p>Проверено</p>
             </div>
         </div>
-        
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-history"></i> Последние сессии</h5>
+        <div class="stat-card">
+            <div class="stat-icon bg-warning">
+                <i class="fas fa-clock"></i>
             </div>
-            <div class="card-body">
-                <% if (sessions && sessions.length > 0) { %>
-                    <div class="table-responsive">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Код</th>
-                                    <th>Статус</th>
-                                    <th>Дата</th>
-                                    <th>Действие</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <% sessions.forEach(session => { %>
-                                    <tr>
-                                        <td><code><%= session.code %></code></td>
-                                        <td>
-                                            <span class="badge bg-<%= session.status === 'completed' ? 'success' : session.status === 'active' ? 'primary' : 'secondary' %>">
-                                                <%= session.status %>
-                                            </span>
-                                        </td>
-                                        <td><%= new Date(session.createdAt).toLocaleString('ru') %></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-info" onclick="viewSession('<%= session.code %>')">
-                                                <i class="fas fa-eye"></i> Просмотр
-                                            </button>
-                                        </td>
-                                    </tr>
-                                <% }); %>
-                            </tbody>
-                        </table>
-                    </div>
-                <% } else { %>
-                    <div class="text-center py-5">
-                        <i class="fas fa-inbox fa-3x text-secondary mb-3"></i>
-                        <p class="text-secondary">Сессии отсутствуют</p>
-                    </div>
-                <% } %>
+            <div class="stat-info">
+                <h4><%= sessions.filter(s => s.status === 'active').length %></h4>
+                <p>В процессе</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon bg-primary">
+                <i class="fas fa-chart-bar"></i>
+            </div>
+            <div class="stat-info">
+                <h4><%= sessions.length %></h4>
+                <p>Всего</p>
             </div>
         </div>
     </div>
 </div>
 
-<script>
-function viewSession(code) {
-    alert('Просмотр сессии: ' + code);
-}
-</script>
-
 <style>
-.icon {
-    width: 48px;
-    height: 48px;
+.scanner-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+.scanner-header {
+    text-align: center;
+    padding: 40px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    margin-bottom: 30px;
+    box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);
+}
+.scanner-header h2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0;
+    color: white;
+}
+.scanner-header p {
+    color: rgba(255,255,255,0.9);
+    margin-top: 10px;
+    font-size: 1.1rem;
+}
+.search-section {
+    margin-bottom: 30px;
+}
+.search-box {
+    display: flex;
+    gap: 15px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+.search-box input {
+    flex: 1;
+    padding: 15px 20px;
+    font-size: 1.1rem;
+    border-radius: 10px;
+    border: 2px solid rgba(102, 126, 234, 0.3);
+}
+.search-box input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+}
+.search-box button {
+    padding: 15px 30px;
+    font-size: 1.1rem;
+    border-radius: 10px;
+}
+.players-list {
+    background: var(--card);
+    border-radius: 15px;
+    padding: 25px;
+    margin-bottom: 30px;
+}
+.players-list h5 {
+    margin-bottom: 20px;
+    color: var(--primary);
+    font-weight: 600;
+}
+.status-clean {
+    background: #10b981;
+    color: white;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+.status-scanning {
+    background: #f59e0b;
+    color: white;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+.status-pending {
+    background: #6b7280;
+    color: white;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+.stat-card {
+    background: var(--card);
+    border-radius: 15px;
+    padding: 25px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    transition: transform 0.3s;
+}
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+.stat-icon {
+    width: 60px;
+    height: 60px;
     border-radius: 12px;
-    background: linear-gradient(135deg, #4A90E2, #357ABD);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 15px rgba(74, 144, 226, 0.3);
-}
-.icon i {
+    font-size: 1.5rem;
     color: white;
-    font-size: 1.25rem;
 }
-.fade-in-up {
-    animation: fadeInUp 0.6s ease;
+.stat-info h4 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
 }
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.stat-info p {
+    margin: 0;
+    color: var(--text-secondary);
 }
 </style>
+
+<script>
+function searchPlayer() {
+    const query = document.getElementById('playerSearch').value;
+    if (!query) {
+        alert('Введите никнейм игрока');
+        return;
+    }
+    alert('Поиск: ' + query + '\n(Функционал в разработке)');
+}
+
+function viewDetails(code) {
+    window.location.href = '/session/' + code;
+}
+</script>
 
 <%- include('footer') %>
