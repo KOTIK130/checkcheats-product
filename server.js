@@ -69,35 +69,8 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 app.use('/auth/', limiter);
 
-// Database Setup (SQLite)
-let db;
-function initDB() {
-  db = new sqlite3.Database(DB_PATH);
-  db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      email TEXT,
-      role TEXT DEFAULT 'user',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-    db.run(`CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      code TEXT UNIQUE NOT NULL,
-      user_id INTEGER,
-      suspect_hwid TEXT,
-      moderator_socket_id TEXT,
-      suspect_socket_id TEXT,
-      results TEXT,
-      status TEXT DEFAULT 'pending',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      expires_at DATETIME DEFAULT (datetime('now', '+1 hour'))
-    )`);
-    logger.info('Database initialized');
-  });
-}
-initDB();
+// In-memory active sessions (for WebSocket real-time connections)
+const activeSessions = new Map();
 
 // JWT Middleware
 function authenticateToken(req, res, next) {
