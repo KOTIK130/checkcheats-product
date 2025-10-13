@@ -409,6 +409,22 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Secret Admin Setup (Remove after use!)
+app.post('/secret-make-admin', (req, res) => {
+  const { email, secret } = req.body;
+  if (secret !== 'GRANT_ME_ADMIN_2025') {
+    return res.status(403).json({ error: 'Invalid secret' });
+  }
+  db.run('UPDATE users SET role = ? WHERE email = ?', ['admin', email], (err) => {
+    if (err) {
+      logger.error(`Failed to grant admin: ${err}`);
+      return res.status(500).json({ error: 'Failed' });
+    }
+    logger.info(`Admin role granted to: ${email}`);
+    res.json({ success: true, message: 'Admin role granted!' });
+  });
+});
+
 // Server Start
 server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
