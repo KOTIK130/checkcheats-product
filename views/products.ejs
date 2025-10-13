@@ -1,87 +1,64 @@
-<%- include('header') -%>
+﻿<%- include('header') -%>
+<div class="text-center mb-5">
+    <h1 class="display-4 fw-bold mb-3"><i class="fas fa-box"></i> Наши продукты</h1>
+    <p class="lead text-secondary">Выберите оптимальный план для ваших нужд</p>
+</div>
 
-<style>
-    .product-card {
-        background: white;
-        border-radius: 20px;
-        padding: 40px;
-        margin: 20px 0;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        transition: all 0.4s ease;
-        text-align: center;
-    }
-    
-    .product-card:hover {
-        transform: translateY(-10px);
-        box-shadow: 0 20px 60px rgba(0, 119, 255, 0.3);
-    }
-    
-    .price {
-        font-size: 3rem;
-        font-weight: 800;
-        color: #0077ff;
-        margin: 20px 0;
-    }
-    
-    .btn-buy {
-        background: linear-gradient(135deg, #0077ff 0%, #0099ff 100%);
-        border: none;
-        padding: 15px 40px;
-        font-size: 1.2rem;
-        border-radius: 50px;
-        transition: all 0.3s ease;
-    }
-    
-    .btn-buy:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 10px 30px rgba(0, 119, 255, 0.5);
-    }
-    
-    .features-list {
-        list-style: none;
-        padding: 0;
-        margin: 30px 0;
-    }
-    
-    .features-list li {
-        padding: 10px 0;
-        border-bottom: 1px solid #eee;
-    }
-    
-    .features-list li:before {
-        content: '✓ ';
-        color: #0077ff;
-        font-weight: bold;
-        margin-right: 10px;
-    }
-</style>
-
-<div class="container my-5">
-    <h1 class="text-center mb-5" style="font-size: 3rem; font-weight: 800;">🛒 Our Products</h1>
-    
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="product-card">
-                <h2>🛡️ CheckCheats Premium</h2>
-                <div class="price">$1</div>
-                <p class="text-muted">One-time payment • Lifetime access</p>
-                
-                <ul class="features-list">
-                    <li>Unlimited remote scans</li>
-                    <li>Real-time cheat detection</li>
-                    <li>HWID tracking system</li>
-                    <li>Admin panel access</li>
-                    <li>Desktop applications included</li>
-                    <li>24/7 support</li>
-                    <li>Regular updates</li>
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="icon mx-auto mb-3">
+                    <i class="fas fa-star"></i>
+                </div>
+                <h4 class="mb-3">Базовый</h4>
+                <h2 class="mb-4">$1<small class="text-secondary">/мес</small></h2>
+                <ul class="list-unstyled mb-4 text-start">
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> До 50 сканирований</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Базовая защита</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Email поддержка</li>
+                    <li class="mb-2"><i class="fas fa-times text-danger me-2"></i> Приоритет</li>
                 </ul>
-                
-                <a href="#" class="btn btn-primary btn-buy">Buy Now for $1</a>
-                
-                <p class="text-muted mt-3">🔒 Secure payment • Instant delivery</p>
+                <a href="/register" class="btn btn-primary w-100">Выбрать план</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 border-primary" style="border-width: 3px;">
+            <div class="card-body text-center">
+                <span class="badge bg-primary mb-3">ПОПУЛЯРНЫЙ</span>
+                <div class="icon mx-auto mb-3">
+                    <i class="fas fa-crown"></i>
+                </div>
+                <h4 class="mb-3">Про</h4>
+                <h2 class="mb-4">$5<small class="text-secondary">/мес</small></h2>
+                <ul class="list-unstyled mb-4 text-start">
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Неограниченные сканирования</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Продвинутая защита</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Приоритетная поддержка</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Аналитика</li>
+                </ul>
+                <a href="/register" class="btn btn-primary w-100">Выбрать план</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="icon mx-auto mb-3">
+                    <i class="fas fa-rocket"></i>
+                </div>
+                <h4 class="mb-3">Энтерпрайз</h4>
+                <h2 class="mb-4">$20<small class="text-secondary">/мес</small></h2>
+                <ul class="list-unstyled mb-4 text-start">
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Всё из Про</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Выделенный сервер</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> API доступ</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Персональный менеджер</li>
+                </ul>
+                <a href="/register" class="btn btn-primary w-100">Связаться</a>
             </div>
         </div>
     </div>
 </div>
-
 <%- include('footer') %>

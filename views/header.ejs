@@ -1,110 +1,122 @@
-<!DOCTYPE html>
-<html lang="en">
+﻿<!DOCTYPE html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= typeof title !== 'undefined' ? title : 'CheckCheats' %> - CheckCheats</title>
+    <title><%= typeof title !== 'undefined' ? title : 'CheckCheats - Anti-Cheat System' %></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --primary: #4A90E2;
+            --secondary: #357ABD;
+            --dark: #0F1419;
+            --darker: #0A0E13;
+            --card: #1A1F2E;
+            --border: rgba(74, 144, 226, 0.2);
+            --text: #FFFFFF;
+            --text-secondary: #A0AEC0;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f8f9fa;
-            overflow-x: hidden;
+            background: linear-gradient(135deg, var(--darker) 0%, #1E3A5F 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
         }
-        
         .navbar {
-            background: linear-gradient(135deg, #0077ff 0%, #0055cc 100%) !important;
-            box-shadow: 0 2px 20px rgba(0,119,255,0.3);
-            padding: 15px 0;
-            transition: all 0.3s ease;
+            background: rgba(26, 31, 46, 0.95) !important;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
         }
-        
         .navbar-brand {
-            font-weight: 800;
-            font-size: 1.5rem;
-            transition: all 0.3s ease;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
-        
-        .navbar-brand:hover {
-            transform: scale(1.05);
-            text-shadow: 0 0 20px rgba(255,255,255,0.5);
+        .navbar-brand img {
+            width: 36px;
+            height: 36px;
         }
-        
         .nav-link {
-            margin: 0 10px;
-            transition: all 0.3s ease;
-            position: relative;
+            color: var(--text-secondary) !important;
+            font-weight: 500;
+            transition: all 0.3s;
         }
-        
-        .nav-link::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 0;
-            height: 2px;
-            background: white;
-            transition: width 0.3s ease;
+        .nav-link:hover {
+            color: var(--primary) !important;
         }
-        
-        .nav-link:hover::after {
-            width: 80%;
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s;
         }
-        
-        .btn-outline-light {
-            transition: all 0.3s ease;
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 48px rgba(74, 144, 226, 0.2);
         }
-        
-        .btn-outline-light:hover {
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none;
+            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.4);
+        }
+        .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255,255,255,0.3);
         }
-        
-        main { min-height: calc(100vh - 200px); }
-        
-        /* Smooth scroll */
-        html { scroll-behavior: smooth; }
-        
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 10px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        .form-control {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text);
             border-radius: 10px;
         }
-        ::-webkit-scrollbar-thumb:hover { background: #764ba2; }
+        .form-control:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(74, 144, 226, 0.1);
+            color: var(--text);
+        }
+        .table {
+            color: var(--text);
+        }
+        .table thead th {
+            background: rgba(74, 144, 226, 0.1);
+            border-color: var(--border);
+            color: var(--primary);
+        }
     </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
             <a class="navbar-brand" href="/">
-                <img src="/checkcheats-logo.svg" alt="CheckCheats Logo">
+                <img src="/checkcheats-logo.svg" alt="CheckCheats">
                 CheckCheats
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <div class="navbar-nav ms-auto">
-                    <% if (typeof user !== 'undefined' && user) { %>
-                        <a class="nav-link" href="/dashboard">📊 Dashboard</a>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/"><i class="fas fa-home"></i> Главная</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/products"><i class="fas fa-box"></i> Продукты</a></li>
+                    <% if (user) { %>
+                        <li class="nav-item"><a class="nav-link" href="/dashboard"><i class="fas fa-chart-line"></i> Кабинет</a></li>
                         <% if (user.role === 'admin') { %>
-                            <a class="nav-link" href="/admin">⚙️ Admin</a>
+                            <li class="nav-item"><a class="nav-link" href="/admin"><i class="fas fa-shield-alt"></i> Админ</a></li>
                         <% } %>
-                        <a class="nav-link" href="/products">🛒 Products</a>
-                        <a class="nav-link" href="/change-password">🔑 Password</a>
-                        <form method="POST" action="/logout" class="d-inline">
-                            <button type="submit" class="btn btn-outline-light ms-2">Logout</button>
-                        </form>
+                        <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> Выход</a></li>
                     <% } else { %>
-                        <a class="nav-link" href="/login">🔐 Login</a>
-                        <a class="nav-link" href="/register">✨ Register</a>
+                        <li class="nav-item"><a class="nav-link" href="/login"><i class="fas fa-sign-in-alt"></i> Вход</a></li>
+                        <li class="nav-item"><a class="nav-link btn btn-primary" href="/register"><i class="fas fa-user-plus"></i> Регистрация</a></li>
                     <% } %>
-                </div>
+                </ul>
             </div>
         </div>
     </nav>
-    <main class="mt-0">
+    <div class="container mt-4">
