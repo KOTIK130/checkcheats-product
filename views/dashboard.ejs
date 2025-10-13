@@ -1,254 +1,190 @@
-<%- include('header') -%>
-<style>
-.player-scanner {
-    max-width: 1000px;
-    margin: 40px auto;
-}
-.scanner-title {
-    text-align: center;
-    font-size: 3rem;
-    font-weight: 700;
-    margin-bottom: 10px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-.scanner-subtitle {
-    text-align: center;
-    color: var(--text-secondary);
-    margin-bottom: 40px;
-    font-size: 1.2rem;
-}
-.search-container {
-    background: var(--card);
-    border-radius: 15px;
-    padding: 30px;
-    margin-bottom: 30px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-}
-.search-box-wrapper {
-    display: flex;
-    gap: 15px;
-    align-items: center;
-}
-.search-input {
-    flex: 1;
-    padding: 15px 20px;
-    font-size: 1.1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 2px solid rgba(102, 126, 234, 0.3);
-    border-radius: 10px;
-    color: var(--text);
-    transition: all 0.3s;
-}
-.search-input:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-    background: rgba(255, 255, 255, 0.08);
-}
-.search-input::placeholder {
-    color: rgba(255, 255, 255, 0.4);
-}
-.search-btn {
-    padding: 15px 40px;
-    font-size: 1.1rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    border-radius: 10px;
-    color: white;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-.search-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
-}
-.players-table-container {
-    background: var(--card);
-    border-radius: 15px;
-    padding: 30px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-}
-.table-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin-bottom: 20px;
-    color: var(--text);
-}
-.players-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0 10px;
-}
-.players-table thead th {
-    background: rgba(102, 126, 234, 0.1);
-    padding: 15px 20px;
-    text-align: left;
-    color: #667eea;
-    font-weight: 600;
-    font-size: 1.05rem;
-}
-.players-table thead th:first-child {
-    border-top-left-radius: 10px;
-    border-bottom-left-radius: 10px;
-}
-.players-table thead th:last-child {
-    border-top-right-radius: 10px;
-    border-bottom-right-radius: 10px;
-}
-.players-table tbody tr {
-    background: rgba(255, 255, 255, 0.02);
-    transition: all 0.3s;
-}
-.players-table tbody tr:hover {
-    background: rgba(102, 126, 234, 0.05);
-    transform: scale(1.02);
-}
-.players-table tbody td {
-    padding: 18px 20px;
-    color: var(--text);
-    font-size: 1rem;
-}
-.players-table tbody tr td:first-child {
-    border-top-left-radius: 10px;
-    border-bottom-left-radius: 10px;
-}
-.players-table tbody tr td:last-child {
-    border-top-right-radius: 10px;
-    border-bottom-right-radius: 10px;
-}
-.status-badge {
-    display: inline-block;
-    padding: 8px 20px;
-    border-radius: 20px;
-    font-weight: 700;
-    font-size: 0.95rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-.status-clean {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
-}
-.status-cheater {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    color: white;
-    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
-}
-.status-scanning {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: white;
-    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
-}
-.status-pending {
-    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-    color: white;
-    box-shadow: 0 4px 15px rgba(107, 114, 128, 0.4);
-}
-.player-name {
-    font-weight: 600;
-    font-size: 1.1rem;
-}
-.empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--text-secondary);
-}
-.empty-state i {
-    font-size: 4rem;
-    margin-bottom: 20px;
-    opacity: 0.3;
-}
-.empty-state p {
-    font-size: 1.2rem;
-}
-</style>
+﻿<%- include(''header'') -%>
 
-<div class="player-scanner">
-    <h1 class="scanner-title">Личный кабинет</h1>
-    <p class="scanner-subtitle">Управление проверками</p>
+<div class="container">
+  <div class="hero" style="padding: 40px 24px;">
+    <h1 style="font-size: 2.5rem;"><i class="fas fa-chart-line"></i> Панель управления</h1>
+    <p>Добро пожаловать, <%= user.username %>!</p>
+  </div>
 
-    <div class="search-container">
-        <div class="search-box-wrapper">
-            <input 
-                type="text" 
-                id="playerSearchInput" 
-                class="search-input" 
-                placeholder="Введите никнейм игрока для проверки..."
-                autocomplete="off"
-            >
-            <button class="search-btn" onclick="searchPlayer()">
-                <i class="fas fa-search"></i> Найти
-            </button>
+  <!-- Subscription Info Card -->
+  <% if (user.subscriptionType && user.subscriptionType !== ''none'') { %>
+  <div class="card" style="background: linear-gradient(135deg, rgba(26, 115, 232, 0.1), rgba(0, 212, 255, 0.1)); border-color: var(--accent-start);">
+    <h3 style="margin-bottom: 16px;"><i class="fas fa-crown"></i> Статус подписки</h3>
+    <div class="grid grid-3">
+      <div>
+        <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">UID</div>
+        <div style="font-weight: 600; font-size: 1.1rem;"><%= user.uid || ''N/A'' %></div>
+      </div>
+      <div>
+        <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">Тип подписки</div>
+        <div>
+          <span class="badge badge-info">
+            <%= user.subscriptionType === ''lifetime'' ? ''Навсегда'' : user.subscriptionType === ''90days'' ? ''90 дней'' : ''30 дней'' %>
+          </span>
         </div>
+      </div>
+      <div>
+        <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">Истекает</div>
+        <div style="font-weight: 600; font-size: 1.1rem;">
+          <%= user.subscriptionExpires ? new Date(user.subscriptionExpires).toLocaleDateString(''ru-RU'') : ''N/A'' %>
+        </div>
+      </div>
+    </div>
+  </div>
+  <% } else { %>
+  <div class="card" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3);">
+    <div style="text-align: center;">
+      <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
+      <h3 style="margin-bottom: 12px;">У вас нет активной подписки</h3>
+      <p style="color: var(--text-secondary); margin-bottom: 20px;">Приобретите лицензионный ключ для доступа к CheckCheats</p>
+      <a href="/products" class="btn"><i class="fas fa-shopping-cart"></i> Перейти к продуктам</a>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Activate Key Card -->
+  <div class="card">
+    <h3 style="margin-bottom: 16px;"><i class="fas fa-key"></i> Активировать лицензионный ключ</h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label>Лицензионный ключ</label>
+        <input type="text" id="licenseKey" placeholder="CC-XXXXXXXX-XXXXXXXX" style="text-transform: uppercase;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label>HWID (Hardware ID)</label>
+        <input type="text" id="hwid" placeholder="Введите HWID">
+      </div>
+      <button class="btn" onclick="activateKey()"><i class="fas fa-check-circle"></i> Активировать</button>
+    </div>
+    <div id="activationResult"></div>
+  </div>
+
+  <!-- Sessions Card -->
+  <div class="card">
+    <h3 style="margin-bottom: 20px;"><i class="fas fa-network-wired"></i> Мои сессии сканирования</h3>
+    
+    <div style="margin-bottom: 20px;">
+      <h4 style="margin-bottom: 12px;">Создать новую сессию</h4>
+      <div style="display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label>ID подозреваемого</label>
+          <input type="text" id="suspectId" placeholder="Введите ID или ник игрока">
+        </div>
+        <button class="btn" onclick="createSession()"><i class="fas fa-plus-circle"></i> Создать сессию</button>
+      </div>
+      <div id="sessionResult"></div>
     </div>
 
-    <div class="players-table-container">
-        <h3 class="table-title">
-            <i class="fas fa-list"></i> История проверок
-        </h3>
-        
-        <% if (sessions && sessions.length > 0) { %>
-            <table class="players-table">
-                <thead>
-                    <tr>
-                        <th>Игрок</th>
-                        <th>Статус</th>
-                        <th>Дата проверки</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <% sessions.forEach(session => { %>
-                        <tr>
-                            <td class="player-name"><%= session.suspectId || 'Player_' + session.code.slice(0, 6) %></td>
-                            <td>
-                                <% if (session.status === 'completed') { %>
-                                    <span class="status-badge status-clean">CLEAN</span>
-                                <% } else if (session.status === 'active') { %>
-                                    <span class="status-badge status-scanning">SCANNING</span>
-                                <% } else { %>
-                                    <span class="status-badge status-pending">PENDING</span>
-                                <% } %>
-                            </td>
-                            <td><%= new Date(session.createdAt).toLocaleString('ru-RU') %></td>
-                        </tr>
-                    <% }); %>
-                </tbody>
-            </table>
-        <% } else { %>
-            <div class="empty-state">
-                <i class="fas fa-inbox"></i>
-                <p>Нет проверок</p>
-                <p style="font-size: 1rem; margin-top: 10px;">Введите никнейм игрока в поле поиска выше</p>
-            </div>
-        <% } %>
-    </div>
+    <% if (sessions && sessions.length > 0) { %>
+    <h4 style="margin-bottom: 12px;">История сессий</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Код сессии</th>
+          <th>ID подозреваемого</th>
+          <th>Статус</th>
+          <th>Создана</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% sessions.forEach(s => { %>
+        <tr>
+          <td><code><%= s.code %></code></td>
+          <td><%= s.suspectId %></td>
+          <td>
+            <span class="badge badge-<%= s.status === ''completed'' ? ''success'' : s.status === ''active'' ? ''info'' : ''warning'' %>">
+              <%= s.status %>
+            </span>
+          </td>
+          <td><%= new Date(s.createdAt).toLocaleString(''ru-RU'') %></td>
+          <td>
+            <a href="/session/<%= s.code %>" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">
+              <i class="fas fa-eye"></i> Просмотр
+            </a>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <% } else { %>
+    <p style="text-align: center; color: var(--text-secondary); padding: 20px;">Сессий пока нет. Создайте первую!</p>
+    <% } %>
+  </div>
 </div>
 
 <script>
-function searchPlayer() {
-    const input = document.getElementById('playerSearchInput');
-    const query = input.value.trim();
+async function activateKey() {
+  const key = document.getElementById(''licenseKey'').value.trim();
+  const hwid = document.getElementById(''hwid'').value.trim();
+  
+  if (!key || !hwid) {
+    alert(''Заполните все поля!'');
+    return;
+  }
+  
+  try {
+    const res = await fetch(''/api/activate-key'', {
+      method: ''POST'',
+      headers: { ''Content-Type'': ''application/json'' },
+      body: JSON.stringify({ key, hwid })
+    });
     
-    if (!query) {
-        alert('Введите никнейм игрока');
-        return;
+    const data = await res.json();
+    
+    if (res.ok) {
+      document.getElementById(''activationResult'').innerHTML = 
+        ''<div class="alert alert-success" style="margin-top: 16px;">'' +
+        ''<i class="fas fa-check-circle"></i> Ключ успешно активирован! UID: '' + data.uid + 
+        ''<br>Обновите страницу чтобы увидеть изменения.'' +
+        ''</div>'';
+      setTimeout(() => location.reload(), 2000);
+    } else {
+      document.getElementById(''activationResult'').innerHTML = 
+        ''<div class="alert alert-error" style="margin-top: 16px;">'' +
+        ''<i class="fas fa-times-circle"></i> Ошибка: '' + data.error +
+        ''</div>'';
     }
-    
-    // TODO: Implement actual search
-    alert('Поиск игрока: ' + query + '\n\n(Функционал в разработке)');
+  } catch (err) {
+    alert(''Ошибка сервера'');
+  }
 }
 
-// Enter key support
-document.getElementById('playerSearchInput').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        searchPlayer();
+async function createSession() {
+  const suspectId = document.getElementById(''suspectId'').value.trim();
+  
+  if (!suspectId) {
+    alert(''Введите ID подозреваемого'');
+    return;
+  }
+  
+  try {
+    const res = await fetch(''/api/create-session'', {
+      method: ''POST'',
+      headers: { ''Content-Type'': ''application/json'' },
+      body: JSON.stringify({ suspectId })
+    });
+    
+    const data = await res.json();
+    
+    if (res.ok) {
+      document.getElementById(''sessionResult'').innerHTML = 
+        ''<div class="alert alert-success" style="margin-top: 16px;">'' +
+        ''<i class="fas fa-check-circle"></i> Сессия создана!<br>'' +
+        ''<strong>Код сессии:</strong> <code style="font-size: 1.1rem;">'' + data.code + ''</code><br>'' +
+        ''<small>Сообщите этот код игроку для подключения к проверке.</small>'' +
+        ''</div>'';
+      setTimeout(() => location.reload(), 3000);
+    } else {
+      document.getElementById(''sessionResult'').innerHTML = 
+        ''<div class="alert alert-error" style="margin-top: 16px;">'' +
+        ''<i class="fas fa-times-circle"></i> Ошибка: '' + data.error +
+        ''</div>'';
     }
-});
+  } catch (err) {
+    alert(''Ошибка сервера'');
+  }
+}
 </script>
 
-<%- include('footer') %>
+<%- include(''footer'') -%>

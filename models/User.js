@@ -1,4 +1,4 @@
-// models/User.js - MongoDB User Schema
+﻿// models/User.js - MongoDB User Schema with License System
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -25,6 +25,25 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'admin', 'moderator'],
     default: 'user'
   },
+  uid: {
+    type: String,
+    unique: true,
+    sparse: true,
+    uppercase: true
+  },
+  hwid: {
+    type: String,
+    default: null
+  },
+  subscriptionType: {
+    type: String,
+    enum: ['none', '30days', '90days', 'lifetime'],
+    default: 'none'
+  },
+  subscriptionExpires: {
+    type: Date,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -36,8 +55,8 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
 userSchema.index({ username: 1 });
 userSchema.index({ email: 1 });
+userSchema.index({ uid: 1 });
 
 module.exports = mongoose.model('User', userSchema);
