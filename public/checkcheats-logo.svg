@@ -39,62 +39,24 @@
   <circle cx="300" cy="300" r="1" fill="#ffffff" opacity="0.8"/>
   
   <!-- Shield icon -->
-  <g transform="translate(200, 130)">
-    <path d="M 0,-60 L 40,-40 L 40,20 Q 40,50 0,70 Q -40,50 -40,20 L -40,-40 Z" 
-          fill="#0077ff" 
-          opacity="0.3"
-          filter="url(#glow)"/>
-    <path d="M 0,-55 L 35,-37 L 35,20 Q 35,45 0,63 Q -35,45 -35,20 L -35,-37 Z" 
+  <g transform="translate(50, 50)">
+    <!-- Shield background -->
+    <path d="M 0,-35 L 25,-25 L 25,10 Q 25,30 0,42 Q -25,30 -25,10 L -25,-25 Z" 
+          fill="url(#textGradient)" 
+          opacity="0.2"/>
+    <!-- Shield border -->
+    <path d="M 0,-35 L 25,-25 L 25,10 Q 25,30 0,42 Q -25,30 -25,10 L -25,-25 Z" 
           fill="none" 
           stroke="url(#textGradient)" 
           stroke-width="3"
           filter="url(#glow)"/>
-    <text x="0" y="10" 
-          font-family="Arial, sans-serif" 
-          font-size="40" 
-          font-weight="bold" 
-          fill="url(#textGradient)"
-          text-anchor="middle"
-          filter="url(#glow)">✓</text>
+    <!-- Checkmark -->
+    <path d="M -12,0 L -5,10 L 15,-15" 
+          fill="none" 
+          stroke="url(#textGradient)" 
+          stroke-width="4" 
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          filter="url(#glow)"/>
   </g>
-  
-  <!-- Text: CheckCheats -->
-  <text x="200" y="260" 
-        font-family="'Segoe UI', Arial, sans-serif" 
-        font-size="42" 
-        font-weight="900" 
-        fill="url(#textGradient)"
-        text-anchor="middle"
-        filter="url(#glow)">CheckCheats</text>
-  
-  <!-- Subtitle -->
-  <text x="200" y="290" 
-        font-family="'Segoe UI', Arial, sans-serif" 
-        font-size="14" 
-        fill="#00ccff"
-        text-anchor="middle"
-        opacity="0.8">Anti-Cheat System</text>
-  
-  <!-- Orbital rings -->
-  <circle cx="200" cy="150" r="90" 
-          fill="none" 
-          stroke="#0077ff" 
-          stroke-width="1" 
-          opacity="0.3"/>
-  <circle cx="200" cy="150" r="110" 
-          fill="none" 
-          stroke="#0099ff" 
-          stroke-width="1" 
-          opacity="0.2"/>
-  
-  <!-- Animated stars -->
-  <circle cx="140" cy="100" r="2" fill="#00ccff">
-    <animate attributeName="opacity" values="0.3;1;0.3" dur="2s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="260" cy="140" r="2" fill="#00ccff">
-    <animate attributeName="opacity" values="0.3;1;0.3" dur="3s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="220" cy="90" r="2" fill="#0077ff">
-    <animate attributeName="opacity" values="0.2;1;0.2" dur="2.5s" repeatCount="indefinite"/>
-  </circle>
 </svg>
