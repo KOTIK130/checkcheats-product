@@ -774,6 +774,99 @@ app.delete('/api/admin/key/:id', authenticateToken, requireRole('admin'), async 
 
 // ==================== END LICENSE KEY SYSTEM ====================
 
+// Aliases for dashboard compatibility
+// POST /api/license/activate (alias for /api/activate-key)
+app.post('/api/license/activate', authenticateToken, async (req, res) => {
+  const { key, hwid } = req.body;
+  
+  if (!key || !hwid) {
+    return res.status(400).json({ error: 'Key and HWID required' });
+  }
+  
+  try {
+    const licenseKey = await Key.findOne({ key: key.toUpperCase().trim() });
+    
+    if (!licenseKey) {
+      return res.status(404).json({ error: 'Invalid key' });
+    }
+    
+    if (licenseKey.status !== 'active') {
+      return res.status(400).json({ error: 'Key already used or expired' });
+    }
+    
+    const user = await User.findById(req.user.userId);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Generate UID if not exists
+    if (!user.uid) {
+      user.uid = 'UID-' + uuidv4().slice(0, 12).toUpperCase();
+    }
+    
+    // Set HWID
+    user.hwid = hwid;
+    user.subscriptionType = licenseKey.type;
+    
+    // Calculate expiration
+    if (licenseKey.type === 'lifetime') {
+      user.subscriptionExpires = new Date('2099-12-31');
+    } else if (licenseKey.type === '30days') {
+      user.subscriptionExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    } else if (licenseKey.type === '90days') {
+      user.subscriptionExpires = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+    }
+    
+    await user.save();
+    
+    // Update key status
+    licenseKey.status = 'used';
+    licenseKey.usedBy = user._id;
+    licenseKey.usedAt = new Date();
+    await licenseKey.save();
+    
+    logger.info('Key activated: ' + key + ' by user ' + user.username);
+    res.json({ 
+      message: 'Key activated successfully', 
+      uid: user.uid, 
+      subscriptionType: user.subscriptionType,
+      subscriptionExpires: user.subscriptionExpires
+    });
+  } catch (err) {
+    logger.error('Activate key error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/sessions/create (alias for /api/create-session)
+app.post('/api/sessions/create', authenticateToken, async (req, res) => {
+  const { suspectId } = req.body;
+  
+  if (!suspectId) {
+    return res.status(400).json({ error: 'Suspect ID required' });
+  }
+  
+  try {
+    const code = uuidv4().slice(0, 8).toUpperCase();
+    
+    const session = new Session({
+      code,
+      suspectId,
+      moderatorId: req.user.userId,
+      status: 'pending'
+    });
+    
+    await session.save();
+    
+    logger.info('Session created: ' + code + ' by ' + req.user.username);
+    res.json({ code, expiresAt: session.expiresAt });
+  } catch (err) {
+    logger.error('Create session error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.use((req, res) => {
   res.status(404).render('404', { user: req.user || null });
 });
