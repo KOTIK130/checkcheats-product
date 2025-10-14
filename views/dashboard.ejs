@@ -1,4 +1,4 @@
-﻿<%- include(''header'') -%>
+﻿<%- include('header') -%>
 
 <div class="container">
   <div class="hero" style="padding: 40px 24px;">
@@ -7,26 +7,26 @@
   </div>
 
   <!-- Subscription Info Card -->
-  <% if (user.subscriptionType && user.subscriptionType !== ''none'') { %>
-  <div class="card" style="background: linear-gradient(135deg, rgba(26, 115, 232, 0.1), rgba(0, 212, 255, 0.1)); border-color: var(--accent-start);">
+  <% if (user.subscriptionType && user.subscriptionType !== 'none') { %>
+  <div class="card" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1)); border-color: var(--primary);">
     <h3 style="margin-bottom: 16px;"><i class="fas fa-crown"></i> Статус подписки</h3>
     <div class="grid grid-3">
       <div>
         <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">UID</div>
-        <div style="font-weight: 600; font-size: 1.1rem;"><%= user.uid || ''N/A'' %></div>
+        <div style="font-weight: 600; font-size: 1.1rem;"><%= user.uid || 'N/A' %></div>
       </div>
       <div>
         <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">Тип подписки</div>
         <div>
           <span class="badge badge-info">
-            <%= user.subscriptionType === ''lifetime'' ? ''Навсегда'' : user.subscriptionType === ''90days'' ? ''90 дней'' : ''30 дней'' %>
+            <%= user.subscriptionType === 'lifetime' ? 'Навсегда' : user.subscriptionType === '90days' ? '90 дней' : '30 дней' %>
           </span>
         </div>
       </div>
       <div>
         <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">Истекает</div>
         <div style="font-weight: 600; font-size: 1.1rem;">
-          <%= user.subscriptionExpires ? new Date(user.subscriptionExpires).toLocaleDateString(''ru-RU'') : ''N/A'' %>
+          <%= user.subscriptionExpires ? new Date(user.subscriptionExpires).toLocaleDateString('ru-RU') : 'N/A' %>
         </div>
       </div>
     </div>
@@ -48,13 +48,13 @@
     <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end;">
       <div class="form-group" style="margin-bottom: 0;">
         <label>Лицензионный ключ</label>
-        <input type="text" id="licenseKey" placeholder="CC-XXXXXXXX-XXXXXXXX" style="text-transform: uppercase;">
+        <input type="text" id="licenseKey" class="form-control" placeholder="CC-XXXXXXXX-XXXXXXXX" style="text-transform: uppercase;">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label>HWID (Hardware ID)</label>
-        <input type="text" id="hwid" placeholder="Введите HWID">
+        <input type="text" id="hwid" class="form-control" placeholder="Введите HWID">
       </div>
-      <button class="btn" onclick="activateKey()"><i class="fas fa-check-circle"></i> Активировать</button>
+      <button class="btn btn-primary" onclick="activateKey()"><i class="fas fa-check-circle"></i> Активировать</button>
     </div>
     <div id="activationResult"></div>
   </div>
@@ -68,16 +68,16 @@
       <div style="display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end;">
         <div class="form-group" style="margin-bottom: 0;">
           <label>ID подозреваемого</label>
-          <input type="text" id="suspectId" placeholder="Введите ID или ник игрока">
+          <input type="text" id="suspectId" class="form-control" placeholder="Введите ID или ник игрока">
         </div>
-        <button class="btn" onclick="createSession()"><i class="fas fa-plus-circle"></i> Создать сессию</button>
+        <button class="btn btn-primary" onclick="createSession()"><i class="fas fa-plus-circle"></i> Создать сессию</button>
       </div>
       <div id="sessionResult"></div>
     </div>
 
     <% if (sessions && sessions.length > 0) { %>
     <h4 style="margin-bottom: 12px;">История сессий</h4>
-    <table>
+    <table class="table">
       <thead>
         <tr>
           <th>Код сессии</th>
@@ -93,11 +93,11 @@
           <td><code><%= s.code %></code></td>
           <td><%= s.suspectId %></td>
           <td>
-            <span class="badge badge-<%= s.status === ''completed'' ? ''success'' : s.status === ''active'' ? ''info'' : ''warning'' %>">
+            <span class="badge badge-<%= s.status === 'completed' ? 'success' : s.status === 'active' ? 'info' : 'warning' %>">
               <%= s.status %>
             </span>
           </td>
-          <td><%= new Date(s.createdAt).toLocaleString(''ru-RU'') %></td>
+          <td><%= new Date(s.createdAt).toLocaleString('ru-RU') %></td>
           <td>
             <a href="/session/<%= s.code %>" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">
               <i class="fas fa-eye"></i> Просмотр
@@ -115,76 +115,88 @@
 
 <script>
 async function activateKey() {
-  const key = document.getElementById(''licenseKey'').value.trim();
-  const hwid = document.getElementById(''hwid'').value.trim();
+  const key = document.getElementById('licenseKey').value.trim();
+  const hwid = document.getElementById('hwid').value.trim();
   
   if (!key || !hwid) {
-    alert(''Заполните все поля!'');
+    alert('Заполните все поля!');
     return;
   }
   
   try {
-    const res = await fetch(''/api/activate-key'', {
-      method: ''POST'',
-      headers: { ''Content-Type'': ''application/json'' },
+    const res = await fetch('/api/license/activate', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getCookie('token')
+      },
       body: JSON.stringify({ key, hwid })
     });
     
     const data = await res.json();
     
     if (res.ok) {
-      document.getElementById(''activationResult'').innerHTML = 
-        ''<div class="alert alert-success" style="margin-top: 16px;">'' +
-        ''<i class="fas fa-check-circle"></i> Ключ успешно активирован! UID: '' + data.uid + 
-        ''<br>Обновите страницу чтобы увидеть изменения.'' +
-        ''</div>'';
+      document.getElementById('activationResult').innerHTML = 
+        '<div class="alert alert-success" style="margin-top: 16px; padding: 12px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; color: #10b981;">' +
+        '<i class="fas fa-check-circle"></i> Ключ успешно активирован! UID: ' + data.uid + 
+        '<br>Обновите страницу чтобы увидеть изменения.' +
+        '</div>';
       setTimeout(() => location.reload(), 2000);
     } else {
-      document.getElementById(''activationResult'').innerHTML = 
-        ''<div class="alert alert-error" style="margin-top: 16px;">'' +
-        ''<i class="fas fa-times-circle"></i> Ошибка: '' + data.error +
-        ''</div>'';
+      document.getElementById('activationResult').innerHTML = 
+        '<div class="alert alert-error" style="margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; color: #ef4444;">' +
+        '<i class="fas fa-times-circle"></i> Ошибка: ' + data.error +
+        '</div>';
     }
   } catch (err) {
-    alert(''Ошибка сервера'');
+    alert('Ошибка сервера');
   }
 }
 
 async function createSession() {
-  const suspectId = document.getElementById(''suspectId'').value.trim();
+  const suspectId = document.getElementById('suspectId').value.trim();
   
   if (!suspectId) {
-    alert(''Введите ID подозреваемого'');
+    alert('Введите ID подозреваемого');
     return;
   }
   
   try {
-    const res = await fetch(''/api/create-session'', {
-      method: ''POST'',
-      headers: { ''Content-Type'': ''application/json'' },
+    const res = await fetch('/api/sessions/create', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getCookie('token')
+      },
       body: JSON.stringify({ suspectId })
     });
     
     const data = await res.json();
     
     if (res.ok) {
-      document.getElementById(''sessionResult'').innerHTML = 
-        ''<div class="alert alert-success" style="margin-top: 16px;">'' +
-        ''<i class="fas fa-check-circle"></i> Сессия создана!<br>'' +
-        ''<strong>Код сессии:</strong> <code style="font-size: 1.1rem;">'' + data.code + ''</code><br>'' +
-        ''<small>Сообщите этот код игроку для подключения к проверке.</small>'' +
-        ''</div>'';
+      document.getElementById('sessionResult').innerHTML = 
+        '<div class="alert alert-success" style="margin-top: 16px; padding: 12px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; color: #10b981;">' +
+        '<i class="fas fa-check-circle"></i> Сессия создана!<br>' +
+        '<strong>Код сессии:</strong> <code style="font-size: 1.1rem; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">' + data.code + '</code><br>' +
+        '<small>Сообщите этот код игроку для подключения к проверке.</small>' +
+        '</div>';
       setTimeout(() => location.reload(), 3000);
     } else {
-      document.getElementById(''sessionResult'').innerHTML = 
-        ''<div class="alert alert-error" style="margin-top: 16px;">'' +
-        ''<i class="fas fa-times-circle"></i> Ошибка: '' + data.error +
-        ''</div>'';
+      document.getElementById('sessionResult').innerHTML = 
+        '<div class="alert alert-error" style="margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; color: #ef4444;">' +
+        '<i class="fas fa-times-circle"></i> Ошибка: ' + data.error +
+        '</div>';
     }
   } catch (err) {
-    alert(''Ошибка сервера'');
+    alert('Ошибка сервера');
   }
+}
+
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
 }
 </script>
 
-<%- include(''footer'') -%>
+<%- include('footer') -%>
