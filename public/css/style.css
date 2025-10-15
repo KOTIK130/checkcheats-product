@@ -96,19 +96,40 @@ body::before {
 .btn-primary {
   background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
   color: white;
-  padding: 0.5rem 1.5rem;
-  border-radius: 8px;
+  padding: 0.75rem 2rem;
+  border-radius: 50px;
   text-decoration: none;
   font-weight: 600;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: all 0.3s ease;
   display: inline-block;
   border: none;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 132, 255, 0.3);
+}
+
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px var(--shadow-color);
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 8px 25px var(--shadow-color);
+}
+
+.btn-primary:hover::after {
+  width: 300px;
+  height: 300px;
 }
 
 /* Container */
@@ -142,20 +163,65 @@ body::before {
   margin-right: auto;
 }
 
-/* Cards */
+/* Cards with animation */
 .card {
   background: var(--background-card);
   border-radius: 16px;
   border: 1px solid var(--border-color);
   padding: 2rem;
   margin-bottom: 2rem;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation: slideIn 0.6s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(45deg, transparent, rgba(0, 132, 255, 0.1), transparent);
+  transform: rotate(45deg);
+  transition: all 0.6s;
+  opacity: 0;
 }
 
 .card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 25px 50px rgba(0, 132, 255, 0.4);
   border-color: var(--primary-color);
+}
+
+.card:hover::after {
+  animation: shimmer 0.6s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: rotate(45deg) translateY(-200%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(45deg) translateY(200%);
+    opacity: 0;
+  }
 }
 
 .card-header {
@@ -447,17 +513,49 @@ tr:hover {
   color: var(--warning-color);
 }
 
-/* Buttons */
+/* Buttons - Pill style */
 .btn {
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  padding: 0.875rem 2rem;
+  border-radius: 50px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
   border: none;
   display: inline-block;
   text-decoration: none;
   text-align: center;
+  position: relative;
+  overflow: hidden;
+  animation: fadeInUp 0.5s ease;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .btn-secondary {
