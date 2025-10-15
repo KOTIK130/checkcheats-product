@@ -1,150 +1,303 @@
-<%- include('header') -%>
-
-<div class="container">
-  <div class="hero">
-    <h1><i class="fas fa-shopping-cart"></i> Лицензии CheckCheats</h1>
-    <p>Выберите подходящий тариф для вашей модерации</p>
-  </div>
-
-  <div class="row g-4 mb-5">
-    <!-- 30 Days License -->
-    <div class="col-md-4">
-      <div class="card h-100 text-center">
-        <div class="card-body">
-          <div style="font-size: 3rem; margin-bottom: 16px;">
-            <i class="fas fa-calendar-alt" style="background: linear-gradient(135deg, #43e97b, #38f9d7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i>
-          </div>
-          <h2 style="margin-bottom: 8px;">30 Дней</h2>
-          <p style="color: var(--text-secondary); margin-bottom: 24px;">Идеально для тестирования</p>
-          
-          <div style="font-size: 2.5rem; font-weight: 900; margin-bottom: 8px; background: linear-gradient(135deg, #3B82F6, #2563EB); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-            $9.99
-          </div>
-          <div style="color: var(--text-secondary); margin-bottom: 24px;">за 30 дней</div>
-          
-          <ul style="list-style: none; padding: 0; margin-bottom: 28px; text-align: left;">
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Полный доступ к функциям</li>
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Сканирование игроков</li>
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Обнаружение читов</li>
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Техническая поддержка</li>
-            <li style="padding: 8px 0;"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Обновления системы</li>
-          </ul>
-          
-          <button class="btn btn-secondary" disabled>
-            <i class="fas fa-lock"></i> Скоро доступно
-          </button>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Продукты - NURSULTAN</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+        
+        .purchase-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+        }
+        
+        .modal-content {
+            background: var(--background-card);
+            margin: 10% auto;
+            padding: 2rem;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+        }
+        
+        .close-modal {
+            color: var(--text-secondary);
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close-modal:hover {
+            color: var(--text-primary);
+        }
+        
+        .price-options {
+            margin: 1.5rem 0;
+        }
+        
+        .price-option {
+            background: var(--background-dark);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .price-option:hover {
+            border-color: var(--primary-color);
+        }
+        
+        .price-option.selected {
+            border-color: var(--accent-color);
+            background: rgba(0, 212, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">NURSULTAN</a>
+            <ul class="nav-menu">
+                <li><a href="/" class="nav-link">Главная</a></li>
+                <li><a href="/products" class="nav-link active">Продукты</a></li>
+                <% if (user) { %>
+                    <li><a href="/dashboard" class="nav-link">Личный кабинет</a></li>
+                    <% if (user.group === 'Admin') { %>
+                        <li><a href="/admin" class="nav-link">Админ панель</a></li>
+                    <% } %>
+                    <li><a href="#" onclick="logout()" class="nav-link">Выйти</a></li>
+                <% } else { %>
+                    <li><a href="/login" class="nav-link">Войти</a></li>
+                    <li><a href="/register" class="btn-primary">Регистрация</a></li>
+                <% } %>
+            </ul>
         </div>
-      </div>
-    </div>
+    </nav>
 
-    <!-- 90 Days License -->
-    <div class="col-md-4">
-      <div class="card h-100 text-center" style="border: 2px solid #3B82F6; box-shadow: 0 8px 30px rgba(59, 130, 246, 0.3);">
-        <div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #3B82F6, #2563EB); padding: 6px 20px; border-radius: 20px; font-weight: 700; font-size: 0.85rem;">
-          ПОПУЛЯРНО
+    <div class="container">
+        <div class="hero">
+            <h1>Наши Продукты</h1>
+            <p>Выберите подходящий вариант для вашей игры</p>
         </div>
-        <div class="card-body">
-          <div style="font-size: 3rem; margin-bottom: 16px; margin-top: 12px;">
-            <i class="fas fa-fire" style="background: linear-gradient(135deg, #4facfe, #00f2fe); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i>
-          </div>
-          <h2 style="margin-bottom: 8px;">90 Дней</h2>
-          <p style="color: var(--text-secondary); margin-bottom: 24px;">Лучшее предложение!</p>
-          
-          <div style="font-size: 2.5rem; font-weight: 900; margin-bottom: 8px; background: linear-gradient(135deg, #3B82F6, #2563EB); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-            $24.99
-          </div>
-          <div style="color: var(--text-secondary); margin-bottom: 8px;">за 90 дней</div>
-          <div style="color: #10b981; font-weight: 600; margin-bottom: 24px;">Экономия $5</div>
-          
-          <ul style="list-style: none; padding: 0; margin-bottom: 28px; text-align: left;">
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Полный доступ к функциям</li>
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Сканирование игроков</li>
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Обнаружение читов</li>
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Приоритетная поддержка</li>
-            <li style="padding: 8px 0;"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Обновления системы</li>
-          </ul>
-          
-          <button class="btn btn-primary" disabled>
-            <i class="fas fa-lock"></i> Скоро доступно
-          </button>
+
+        <div class="products-grid">
+            <!-- Hardcoded product for demo, will be dynamic later -->
+            <div class="product-card">
+                <img src="https://via.placeholder.com/400x200/1e1e2e/0084ff?text=Premium+Cheat" alt="Product" class="product-image">
+                <div class="product-content">
+                    <h3 class="product-title">NURSULTAN Premium</h3>
+                    <p class="product-description">
+                        Профессиональный софт с продвинутыми функциями для максимальной эффективности в игре.
+                    </p>
+                    
+                    <div style="margin: 1.5rem 0;">
+                        <h4 style="color: var(--text-secondary); margin-bottom: 0.5rem;">Возможности:</h4>
+                        <ul style="list-style: none; padding: 0;">
+                            <li style="color: var(--text-primary); margin-bottom: 0.5rem;">✅ Aimbot с настройкой FOV</li>
+                            <li style="color: var(--text-primary); margin-bottom: 0.5rem;">✅ ESP (Wallhack)</li>
+                            <li style="color: var(--text-primary); margin-bottom: 0.5rem;">✅ Радар и миникарта</li>
+                            <li style="color: var(--text-primary); margin-bottom: 0.5rem;">✅ Триггербот</li>
+                            <li style="color: var(--text-primary); margin-bottom: 0.5rem;">✅ Антиотдача</li>
+                            <li style="color: var(--text-primary); margin-bottom: 0.5rem;">✅ Обход античитов</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="product-price">от 1,990₽</div>
+                    
+                    <button class="btn-primary" style="width: 100%;" onclick="openPurchaseModal()">
+                        🛒 Купить
+                    </button>
+                </div>
+            </div>
+            
+            <% if (typeof products !== 'undefined' && products.length > 0) { %>
+                <% products.forEach(product => { %>
+                <div class="product-card">
+                    <img src="<%= product.image %>" alt="<%= product.name %>" class="product-image">
+                    <div class="product-content">
+                        <h3 class="product-title"><%= product.name %></h3>
+                        <p class="product-description"><%= product.description %></p>
+                        
+                        <% if (product.features && product.features.length > 0) { %>
+                        <div style="margin: 1.5rem 0;">
+                            <h4 style="color: var(--text-secondary); margin-bottom: 0.5rem;">Возможности:</h4>
+                            <ul style="list-style: none; padding: 0;">
+                                <% product.features.forEach(feature => { %>
+                                <li style="color: var(--text-primary); margin-bottom: 0.5rem;">✅ <%= feature %></li>
+                                <% }) %>
+                            </ul>
+                        </div>
+                        <% } %>
+                        
+                        <div class="product-price"><%= product.price %>₽</div>
+                        
+                        <button class="btn-primary" style="width: 100%;" onclick="openPurchaseModal()">
+                            🛒 Купить
+                        </button>
+                    </div>
+                </div>
+                <% }) %>
+            <% } %>
         </div>
-      </div>
     </div>
 
-    <!-- Lifetime License -->
-    <div class="col-md-4">
-      <div class="card h-100 text-center">
-        <div class="card-body">
-          <div style="font-size: 3rem; margin-bottom: 16px;">
-            <i class="fas fa-crown" style="background: linear-gradient(135deg, #f093fb, #f5576c); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i>
-          </div>
-          <h2 style="margin-bottom: 8px;">Навсегда</h2>
-          <p style="color: var(--text-secondary); margin-bottom: 24px;">Безлимитный доступ</p>
-          
-          <div style="font-size: 2.5rem; font-weight: 900; margin-bottom: 8px; background: linear-gradient(135deg, #f093fb, #f5576c); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-            $49.99
-          </div>
-          <div style="color: var(--text-secondary); margin-bottom: 24px;">единоразово</div>
-          
-          <ul style="list-style: none; padding: 0; margin-bottom: 28px; text-align: left;">
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Полный доступ навсегда</li>
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Сканирование игроков</li>
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Обнаружение читов</li>
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> VIP поддержка 24/7</li>
-            <li style="padding: 8px 0; border-bottom: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Все будущие обновления</li>
-            <li style="padding: 8px 0;"><i class="fas fa-check" style="color: #10b981; margin-right: 8px;"></i> Ранний доступ к новым функциям</li>
-          </ul>
-          
-          <button class="btn btn-secondary" disabled>
-            <i class="fas fa-lock"></i> Скоро доступно
-          </button>
+    <!-- Purchase Modal -->
+    <div id="purchaseModal" class="purchase-modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closePurchaseModal()">&times;</span>
+            <h2 style="margin-bottom: 1.5rem;">Выберите тарифный план</h2>
+            
+            <div class="price-options">
+                <div class="price-option" onclick="selectPriceOption(this, '30days', 1990)">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="color: var(--text-primary);">30 дней</h3>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem;">Месячная подписка</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="product-price">1,990₽</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="price-option" onclick="selectPriceOption(this, '90days', 4990)">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="color: var(--text-primary);">90 дней</h3>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem;">3 месяца (-17%)</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="product-price">4,990₽</div>
+                            <small style="color: var(--text-secondary); text-decoration: line-through;">5,970₽</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="price-option" onclick="selectPriceOption(this, '180days', 8990)">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="color: var(--text-primary);">180 дней</h3>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem;">6 месяцев (-25%)</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="product-price">8,990₽</div>
+                            <small style="color: var(--text-secondary); text-decoration: line-through;">11,940₽</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="price-option" onclick="selectPriceOption(this, 'lifetime', 14990)">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="color: var(--text-primary);">Навсегда</h3>
+                            <p style="color: var(--success-color); font-size: 0.875rem;">⭐ Лучшее предложение</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="product-price">14,990₽</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="background: var(--background-dark); border-radius: 8px; padding: 1.5rem; margin-top: 1.5rem;">
+                <h3 style="margin-bottom: 1rem; color: var(--primary-color);">Как купить:</h3>
+                <ol style="color: var(--text-secondary); margin-left: 1.5rem; line-height: 1.8;">
+                    <li>Выберите подходящий тариф</li>
+                    <li>Свяжитесь с нами в Telegram: <a href="https://t.me/nursultan_support" style="color: var(--accent-color);">@nursultan_support</a></li>
+                    <li>Оплатите через CryptoBot или другой способ</li>
+                    <li>Получите ключ активации</li>
+                    <li>Активируйте ключ в личном кабинете</li>
+                </ol>
+            </div>
+            
+            <div style="margin-top: 1.5rem; text-align: center;">
+                <button id="purchaseButton" class="btn-primary" onclick="proceedPurchase()">
+                    Перейти к оплате
+                </button>
+            </div>
         </div>
-      </div>
     </div>
-  </div>
 
-  <!-- FAQ Section -->
-  <div class="card mb-5">
-    <h2 style="text-align: center; margin-bottom: 32px;"><i class="fas fa-question-circle"></i> Часто задаваемые вопросы</h2>
-    
-    <div style="max-width: 800px; margin: 0 auto;">
-      <div style="margin-bottom: 24px;">
-        <h4 style="color: #3B82F6; margin-bottom: 8px;">Как активировать лицензию?</h4>
-        <p style="color: var(--text-secondary);">После покупки вы получите лицензионный ключ. Перейдите в Dashboard и введите ключ вместе с вашим HWID для активации.</p>
-      </div>
-      
-      <div style="margin-bottom: 24px;">
-        <h4 style="color: #3B82F6; margin-bottom: 8px;">Что такое HWID?</h4>
-        <p style="color: var(--text-secondary);">HWID (Hardware ID) - уникальный идентификатор вашего компьютера. Он привязывает лицензию к вашему устройству для защиты от несанкционированного использования.</p>
-      </div>
-      
-      <div style="margin-bottom: 24px;">
-        <h4 style="color: #3B82F6; margin-bottom: 8px;">Могу ли я передать лицензию другому человеку?</h4>
-        <p style="color: var(--text-secondary);">Нет, лицензии привязаны к HWID и не подлежат передаче. Однако администратор может сбросить HWID в особых случаях.</p>
-      </div>
-      
-      <div style="margin-bottom: 24px;">
-        <h4 style="color: #3B82F6; margin-bottom: 8px;">Есть ли возврат средств?</h4>
-        <p style="color: var(--text-secondary);">Да, мы предлагаем возврат средств в течение 7 дней после покупки, если продукт не соответствует заявленным характеристикам.</p>
-      </div>
-      
-      <div>
-        <h4 style="color: #3B82F6; margin-bottom: 8px;">Как связаться с поддержкой?</h4>
-        <p style="color: var(--text-secondary);">Вы можете связаться с нами через Discord, Telegram или email: support@checkcheats.com</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Contact Section -->
-  <div class="card text-center" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1)); border-color: #3B82F6;">
-    <h2 style="margin-bottom: 16px;"><i class="fas fa-headset"></i> Нужна помощь?</h2>
-    <p style="color: var(--text-secondary); margin-bottom: 24px;">Свяжитесь с нами для получения индивидуального предложения или консультации</p>
-    <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
-      <a href="#" class="btn btn-secondary"><i class="fab fa-discord"></i> Discord</a>
-      <a href="#" class="btn btn-secondary"><i class="fab fa-telegram"></i> Telegram</a>
-      <a href="mailto:support@checkcheats.com" class="btn btn-secondary"><i class="fas fa-envelope"></i> Email</a>
-    </div>
-  </div>
-</div>
-
-<%- include('footer') -%>
+    <script>
+        let selectedPlan = null;
+        let selectedPrice = null;
+        
+        function openPurchaseModal() {
+            document.getElementById('purchaseModal').style.display = 'block';
+        }
+        
+        function closePurchaseModal() {
+            document.getElementById('purchaseModal').style.display = 'none';
+            // Reset selection
+            document.querySelectorAll('.price-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            selectedPlan = null;
+            selectedPrice = null;
+        }
+        
+        function selectPriceOption(element, plan, price) {
+            // Remove previous selection
+            document.querySelectorAll('.price-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            
+            // Add selection to clicked option
+            element.classList.add('selected');
+            selectedPlan = plan;
+            selectedPrice = price;
+        }
+        
+        function proceedPurchase() {
+            if (!selectedPlan) {
+                alert('Пожалуйста, выберите тарифный план');
+                return;
+            }
+            
+            // Open Telegram with pre-filled message
+            const message = `Здравствуйте! Хочу приобрести NURSULTAN Premium (${selectedPlan}) за ${selectedPrice}₽`;
+            const telegramUrl = `https://t.me/nursultan_support?text=${encodeURIComponent(message)}`;
+            window.open(telegramUrl, '_blank');
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('purchaseModal');
+            if (event.target == modal) {
+                closePurchaseModal();
+            }
+        }
+        
+        function logout() {
+            fetch('/api/auth/logout', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = data.redirect;
+                    }
+                });
+        }
+    </script>
+</body>
+</html>

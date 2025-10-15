@@ -1,46 +1,60 @@
-// create-admin.js - Create test admin user
 require('dotenv').config();
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/checkcheats';
-
 async function createAdmin() {
-  try {
-    await mongoose.connect(MONGODB_URI);
-    console.log('✅ Connected to MongoDB');
-
-    // Check if admin exists
-    const existing = await User.findOne({ username: 'admin' });
-    if (existing) {
-      console.log('❌ Admin user already exists');
-      process.exit(0);
+    try {
+        // Connect to MongoDB
+        await mongoose.connect(process.env.MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true
+        });
+        
+        console.log('✅ Connected to MongoDB');
+        
+        // Admin credentials
+        const adminData = {
+            username: 'admin',
+            email: 'admin@nursultan.com',
+            password: 'admin123', // Change this password!
+            group: 'Admin'
+        };
+        
+        // Check if admin already exists
+        const existingAdmin = await User.findOne({ 
+            $or: [
+                { username: adminData.username },
+                { email: adminData.email }
+            ]
+        });
+        
+        if (existingAdmin) {
+            console.log('❌ Admin user already exists!');
+            if (existingAdmin.group !== 'Admin') {
+                existingAdmin.group = 'Admin';
+                await existingAdmin.save();
+                console.log('✅ Updated existing user to Admin');
+            }
+        } else {
+            // Create new admin
+            const admin = new User(adminData);
+            await admin.save();
+            
+            console.log('✅ Admin user created successfully!');
+            console.log('📧 Email:', adminData.email);
+            console.log('👤 Username:', adminData.username);
+            console.log('🔑 Password:', adminData.password);
+            console.log('🆔 UID:', admin.uid);
+            console.log('\n⚠️  IMPORTANT: Change the password after first login!');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error:', error.message);
+    } finally {
+        await mongoose.connection.close();
+        console.log('👋 Database connection closed');
+        process.exit(0);
     }
-
-    // Create admin user
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-    const admin = new User({
-      username: 'admin',
-      email: 'admin@checkcheats.com',
-      password: hashedPassword,
-      role: 'admin',
-      uid: 'ADMIN-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
-      subscriptionType: 'lifetime',
-      subscriptionExpires: null
-    });
-
-    await admin.save();
-    console.log('✅ Admin user created successfully!');
-    console.log('Username: admin');
-    console.log('Password: admin123');
-    console.log('UID:', admin.uid);
-
-    process.exit(0);
-  } catch (err) {
-    console.error('❌ Error:', err.message);
-    process.exit(1);
-  }
 }
 
 createAdmin();

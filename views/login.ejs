@@ -1,42 +1,96 @@
-<%- include('layout') -%>
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h3>Login</h3>
-            </div>
-            <div class="card-body">
-                <% if (error) { %>
-                    <div class="alert alert-danger">
-                        <% error.forEach(e => { %>
-                            <p><%= e.msg %></p>
-                        <% }); %>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - NURSULTAN</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .auth-container {
+            max-width: 400px;
+            margin: 4rem auto;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">NURSULTAN</a>
+            <ul class="nav-menu">
+                <li><a href="/" class="nav-link">Главная</a></li>
+                <li><a href="/products" class="nav-link">Продукты</a></li>
+                <li><a href="/register" class="nav-link">Регистрация</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="auth-container">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Вход в аккаунт</h2>
+                </div>
+                
+                <div id="error-message" class="alert alert-error" style="display: none;"></div>
+                
+                <form id="login-form">
+                    <div class="form-group">
+                        <label class="form-label">Логин или Email</label>
+                        <input type="text" class="form-control" id="username" required autofocus>
                     </div>
-                <% } %>
-                <form method="POST" action="/login">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" required>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Пароль</label>
+                        <input type="password" class="form-control" id="password" required>
                     </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Login</button>
+                    
+                    <button type="submit" class="btn-primary" style="width: 100%;">Войти</button>
                 </form>
-                <p class="text-center mt-3">Don't have an account? <a href="/register">Register</a></p>
+                
+                <div style="text-align: center; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                    <p style="color: var(--text-secondary);">
+                        Нет аккаунта? <a href="/register" style="color: var(--primary-color);">Создать аккаунт</a>
+                    </p>
+                </div>
             </div>
         </div>
     </div>
-</div>
-<script>
-    // Client-side validation
-    document.querySelector('form').addEventListener('submit', (e) => {
-        const pass = document.getElementById('password').value;
-        if (pass.length < 6) {
+
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            alert('Password must be at least 6 characters');
-        }
-    });
-</script>
-<%- include('footer') %>
+            
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.style.display = 'none';
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    errorDiv.textContent = data.error || 'Ошибка входа';
+                    errorDiv.style.display = 'flex';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Ошибка соединения с сервером';
+                errorDiv.style.display = 'flex';
+            }
+        });
+    </script>
+</body>
+</html>

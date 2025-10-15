@@ -1,202 +1,320 @@
-﻿<%- include('header') -%>
-
-<div class="container">
-  <div class="hero" style="padding: 40px 24px;">
-    <h1 style="font-size: 2.5rem;"><i class="fas fa-chart-line"></i> Панель управления</h1>
-    <p>Добро пожаловать, <%= user.username %>!</p>
-  </div>
-
-  <!-- Subscription Info Card -->
-  <% if (user.subscriptionType && user.subscriptionType !== 'none') { %>
-  <div class="card" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1)); border-color: var(--primary);">
-    <h3 style="margin-bottom: 16px;"><i class="fas fa-crown"></i> Статус подписки</h3>
-    <div class="grid grid-3">
-      <div>
-        <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">UID</div>
-        <div style="font-weight: 600; font-size: 1.1rem;"><%= user.uid || 'N/A' %></div>
-      </div>
-      <div>
-        <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">Тип подписки</div>
-        <div>
-          <span class="badge badge-info">
-            <%= user.subscriptionType === 'lifetime' ? 'Навсегда' : user.subscriptionType === '90days' ? '90 дней' : '30 дней' %>
-          </span>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Личный кабинет - NURSULTAN</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .dashboard-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .info-row {
+            display: flex;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            background: var(--background-card);
+            border-left: 3px solid var(--primary-color);
+            margin-bottom: 0.75rem;
+            border-radius: 8px;
+        }
+        
+        .info-row-label {
+            width: 180px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .info-row-value {
+            flex: 1;
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 1.125rem;
+        }
+        
+        .icon-blue {
+            color: var(--primary-color);
+            width: 20px;
+            height: 20px;
+        }
+        
+        .download-section {
+            margin-top: 2rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, var(--background-card), rgba(0, 132, 255, 0.05));
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">NURSULTAN</a>
+            <ul class="nav-menu">
+                <li><a href="/" class="nav-link">Главная</a></li>
+                <li><a href="/products" class="nav-link">Продукты</a></li>
+                <li><a href="/dashboard" class="nav-link active">Личный кабинет</a></li>
+                <% if (user.group === 'Admin') { %>
+                    <li><a href="/admin" class="nav-link">Админ панель</a></li>
+                <% } %>
+                <li><a href="#" onclick="logout()" class="nav-link">Выйти</a></li>
+            </ul>
         </div>
-      </div>
-      <div>
-        <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">Истекает</div>
-        <div style="font-weight: 600; font-size: 1.1rem;">
-          <%= user.subscriptionExpires ? new Date(user.subscriptionExpires).toLocaleDateString('ru-RU') : 'N/A' %>
+    </nav>
+
+    <div class="container">
+        <div class="dashboard-container">
+            <div class="dashboard-header">
+                <h1 class="dashboard-title">Личный кабинет</h1>
+                <p style="color: var(--text-secondary);">Управление аккаунтом и подпиской</p>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Информация об аккаунте</h2>
+                </div>
+                
+                <div class="info-row">
+                    <div class="info-row-label">
+                        <span class="icon-blue">🆔</span> UID
+                    </div>
+                    <div class="info-row-value"><%= user.uid %></div>
+                </div>
+                
+                <div class="info-row">
+                    <div class="info-row-label">
+                        <span class="icon-blue">👤</span> Логин
+                    </div>
+                    <div class="info-row-value"><%= user.username %></div>
+                </div>
+                
+                <div class="info-row">
+                    <div class="info-row-label">
+                        <span class="icon-blue">👥</span> Группа
+                    </div>
+                    <div class="info-row-value">
+                        <span class="status-badge <%= user.group === 'Admin' ? 'status-active' : 'status-pending' %>">
+                            <%= user.group === 'Admin' ? 'Администратор' : user.group === 'VIP' ? 'VIP' : 'Пользователь' %>
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="info-row">
+                    <div class="info-row-label">
+                        <span class="icon-blue">📅</span> Дата регистрации
+                    </div>
+                    <div class="info-row-value">
+                        <%= new Date(user.registrationDate).toLocaleDateString('ru-RU', { 
+                            year: 'numeric', 
+                            month: '2-digit', 
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }) %>
+                    </div>
+                </div>
+                
+                <div class="info-row">
+                    <div class="info-row-label">
+                        <span class="icon-blue">📧</span> E-mail
+                    </div>
+                    <div class="info-row-value"><%= user.email %></div>
+                </div>
+                
+                <div class="info-row">
+                    <div class="info-row-label">
+                        <span class="icon-blue">🖥️</span> HWID
+                    </div>
+                    <div class="info-row-value">
+                        <%= user.hwid || 'Не привязан' %>
+                        <% if (user.hwid) { %>
+                            <button class="btn btn-small btn-secondary" style="margin-left: 1rem;" onclick="requestHwidReset()">
+                                Сбросить
+                            </button>
+                        <% } %>
+                    </div>
+                </div>
+                
+                <div class="info-row">
+                    <div class="info-row-label">
+                        <span class="icon-blue">🎫</span> Клиент куплен до
+                    </div>
+                    <div class="info-row-value">
+                        <% if (user.subscriptionExpires) { %>
+                            <span class="status-badge <%= new Date(user.subscriptionExpires) > new Date() ? 'status-active' : 'status-expired' %>">
+                                <%= new Date(user.subscriptionExpires).toLocaleDateString('ru-RU', { 
+                                    year: 'numeric', 
+                                    month: '2-digit', 
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                }) %>
+                            </span>
+                        <% } else { %>
+                            <span class="status-badge status-expired">Нет подписки</span>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Активация ключа</h2>
+                </div>
+                
+                <div id="activation-message" class="alert" style="display: none;"></div>
+                
+                <form id="activate-form">
+                    <div class="key-input-group">
+                        <input type="text" class="key-input" id="activation-key" 
+                               placeholder="XXXX-XXXX-XXXX-XXXX" 
+                               maxlength="19"
+                               pattern="[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}"
+                               required>
+                        <button type="submit" class="btn-primary">Активировать</button>
+                    </div>
+                </form>
+                
+                <p style="color: var(--text-secondary); font-size: 0.875rem;">
+                    Введите лицензионный ключ для активации подписки
+                </p>
+            </div>
+
+            <% if (user.subscriptionExpires && new Date(user.subscriptionExpires) > new Date()) { %>
+            <div class="download-section">
+                <h3 style="margin-bottom: 1rem; color: var(--text-primary);">✅ У вас активная подписка</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Вы можете скачать клиент и начать использование
+                </p>
+                <button class="btn-primary" onclick="downloadClient()">
+                    📥 Скачать клиент
+                </button>
+            </div>
+            <% } %>
+
+            <div class="action-buttons">
+                <button class="btn btn-secondary" onclick="showProfile()">
+                    🔐 Сменить пароль
+                </button>
+                <button class="btn btn-danger" onclick="logout()">
+                    🚪 Выйти
+                </button>
+            </div>
         </div>
-      </div>
-    </div>
-  </div>
-  <% } else { %>
-  <div class="card" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3);">
-    <div style="text-align: center;">
-      <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
-      <h3 style="margin-bottom: 12px;">У вас нет активной подписки</h3>
-      <p style="color: var(--text-secondary); margin-bottom: 20px;">Приобретите лицензионный ключ для доступа к CheckCheats</p>
-      <a href="/products" class="btn"><i class="fas fa-shopping-cart"></i> Перейти к продуктам</a>
-    </div>
-  </div>
-  <% } %>
-
-  <!-- Activate Key Card -->
-  <div class="card">
-    <h3 style="margin-bottom: 16px;"><i class="fas fa-key"></i> Активировать лицензионный ключ</h3>
-    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label>Лицензионный ключ</label>
-        <input type="text" id="licenseKey" class="form-control" placeholder="CC-XXXXXXXX-XXXXXXXX" style="text-transform: uppercase;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label>HWID (Hardware ID)</label>
-        <input type="text" id="hwid" class="form-control" placeholder="Введите HWID">
-      </div>
-      <button class="btn btn-primary" onclick="activateKey()"><i class="fas fa-check-circle"></i> Активировать</button>
-    </div>
-    <div id="activationResult"></div>
-  </div>
-
-  <!-- Sessions Card -->
-  <div class="card">
-    <h3 style="margin-bottom: 20px;"><i class="fas fa-network-wired"></i> Мои сессии сканирования</h3>
-    
-    <div style="margin-bottom: 20px;">
-      <h4 style="margin-bottom: 12px;">Создать новую сессию</h4>
-      <div style="display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end;">
-        <div class="form-group" style="margin-bottom: 0;">
-          <label>ID подозреваемого</label>
-          <input type="text" id="suspectId" class="form-control" placeholder="Введите ID или ник игрока">
-        </div>
-        <button class="btn btn-primary" onclick="createSession()"><i class="fas fa-plus-circle"></i> Создать сессию</button>
-      </div>
-      <div id="sessionResult"></div>
     </div>
 
-    <% if (sessions && sessions.length > 0) { %>
-    <h4 style="margin-bottom: 12px;">История сессий</h4>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Код сессии</th>
-          <th>ID подозреваемого</th>
-          <th>Статус</th>
-          <th>Создана</th>
-          <th>Действия</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% sessions.forEach(s => { %>
-        <tr>
-          <td><code><%= s.code %></code></td>
-          <td><%= s.suspectId %></td>
-          <td>
-            <span class="badge badge-<%= s.status === 'completed' ? 'success' : s.status === 'active' ? 'info' : 'warning' %>">
-              <%= s.status %>
-            </span>
-          </td>
-          <td><%= new Date(s.createdAt).toLocaleString('ru-RU') %></td>
-          <td>
-            <a href="/session/<%= s.code %>" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">
-              <i class="fas fa-eye"></i> Просмотр
-            </a>
-          </td>
-        </tr>
-        <% }); %>
-      </tbody>
-    </table>
-    <% } else { %>
-    <p style="text-align: center; color: var(--text-secondary); padding: 20px;">Сессий пока нет. Создайте первую!</p>
-    <% } %>
-  </div>
-</div>
-
-<script>
-async function activateKey() {
-  const key = document.getElementById('licenseKey').value.trim();
-  const hwid = document.getElementById('hwid').value.trim();
-  
-  if (!key || !hwid) {
-    alert('Заполните все поля!');
-    return;
-  }
-  
-  try {
-    const res = await fetch('/api/license/activate', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + getCookie('token')
-      },
-      body: JSON.stringify({ key, hwid })
-    });
-    
-    const data = await res.json();
-    
-    if (res.ok) {
-      document.getElementById('activationResult').innerHTML = 
-        '<div class="alert alert-success" style="margin-top: 16px; padding: 12px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; color: #10b981;">' +
-        '<i class="fas fa-check-circle"></i> Ключ успешно активирован! UID: ' + data.uid + 
-        '<br>Обновите страницу чтобы увидеть изменения.' +
-        '</div>';
-      setTimeout(() => location.reload(), 2000);
-    } else {
-      document.getElementById('activationResult').innerHTML = 
-        '<div class="alert alert-error" style="margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; color: #ef4444;">' +
-        '<i class="fas fa-times-circle"></i> Ошибка: ' + data.error +
-        '</div>';
-    }
-  } catch (err) {
-    alert('Ошибка сервера');
-  }
-}
-
-async function createSession() {
-  const suspectId = document.getElementById('suspectId').value.trim();
-  
-  if (!suspectId) {
-    alert('Введите ID подозреваемого');
-    return;
-  }
-  
-  try {
-    const res = await fetch('/api/sessions/create', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + getCookie('token')
-      },
-      body: JSON.stringify({ suspectId })
-    });
-    
-    const data = await res.json();
-    
-    if (res.ok) {
-      document.getElementById('sessionResult').innerHTML = 
-        '<div class="alert alert-success" style="margin-top: 16px; padding: 12px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; color: #10b981;">' +
-        '<i class="fas fa-check-circle"></i> Сессия создана!<br>' +
-        '<strong>Код сессии:</strong> <code style="font-size: 1.1rem; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">' + data.code + '</code><br>' +
-        '<small>Сообщите этот код игроку для подключения к проверке.</small>' +
-        '</div>';
-      setTimeout(() => location.reload(), 3000);
-    } else {
-      document.getElementById('sessionResult').innerHTML = 
-        '<div class="alert alert-error" style="margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; color: #ef4444;">' +
-        '<i class="fas fa-times-circle"></i> Ошибка: ' + data.error +
-        '</div>';
-    }
-  } catch (err) {
-    alert('Ошибка сервера');
-  }
-}
-
-function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
-}
-</script>
-
-<%- include('footer') -%>
+    <script>
+        // Auto format key input
+        document.getElementById('activation-key').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+            let formatted = '';
+            
+            for (let i = 0; i < value.length && i < 16; i++) {
+                if (i > 0 && i % 4 === 0) {
+                    formatted += '-';
+                }
+                formatted += value[i];
+            }
+            
+            e.target.value = formatted;
+        });
+        
+        // Activate key
+        document.getElementById('activate-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const messageDiv = document.getElementById('activation-message');
+            messageDiv.style.display = 'none';
+            
+            const key = document.getElementById('activation-key').value;
+            
+            try {
+                const response = await fetch('/api/key/activate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ key })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    messageDiv.className = 'alert alert-success';
+                    messageDiv.textContent = data.message || 'Ключ успешно активирован';
+                    messageDiv.style.display = 'flex';
+                    
+                    // Reload page after 2 seconds
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    messageDiv.className = 'alert alert-error';
+                    messageDiv.textContent = data.error || 'Ошибка активации';
+                    messageDiv.style.display = 'flex';
+                }
+            } catch (error) {
+                messageDiv.className = 'alert alert-error';
+                messageDiv.textContent = 'Ошибка соединения с сервером';
+                messageDiv.style.display = 'flex';
+            }
+        });
+        
+        // Download client
+        async function downloadClient() {
+            try {
+                const response = await fetch('/api/download');
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.href = data.downloadUrl;
+                } else {
+                    alert(data.error || 'Ошибка загрузки');
+                }
+            } catch (error) {
+                alert('Ошибка соединения с сервером');
+            }
+        }
+        
+        // Request HWID reset
+        function requestHwidReset() {
+            if (confirm('Вы уверены что хотите сбросить HWID? Это действие можно выполнить только раз в месяц.')) {
+                alert('Обратитесь к администратору для сброса HWID');
+            }
+        }
+        
+        // Show profile settings
+        function showProfile() {
+            window.location.href = '/change-password';
+        }
+        
+        // Logout
+        function logout() {
+            fetch('/api/auth/logout', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = data.redirect;
+                    }
+                });
+        }
+    </script>
+</body>
+</html>

@@ -1,57 +1,120 @@
-<%- include('layout') -%>
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h3>Register</h3>
-            </div>
-            <div class="card-body">
-                <% if (error) { %>
-                    <div class="alert alert-danger">
-                        <% error.forEach(e => { %>
-                            <p><%= e.msg %></p>
-                        <% }); %>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация - NURSULTAN</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .auth-container {
+            max-width: 400px;
+            margin: 4rem auto;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">NURSULTAN</a>
+            <ul class="nav-menu">
+                <li><a href="/" class="nav-link">Главная</a></li>
+                <li><a href="/products" class="nav-link">Продукты</a></li>
+                <li><a href="/login" class="nav-link">Войти</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="auth-container">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Создать аккаунт</h2>
+                </div>
+                
+                <div id="error-message" class="alert alert-error" style="display: none;"></div>
+                
+                <form id="register-form">
+                    <div class="form-group">
+                        <label class="form-label">Логин</label>
+                        <input type="text" class="form-control" id="username" required autofocus 
+                               minlength="3" maxlength="20" 
+                               pattern="[a-zA-Z0-9_]+"
+                               title="Только латинские буквы, цифры и _">
                     </div>
-                <% } %>
-                <form method="POST" action="/register">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" required minlength="3">
+                    
+                    <div class="form-group">
+                        <label class="form-label">E-mail</label>
+                        <input type="email" class="form-control" id="email" required>
                     </div>
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="email" name="email" required>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Пароль</label>
+                        <input type="password" class="form-control" id="password" required minlength="6">
+                        <small style="color: var(--text-secondary); margin-top: 0.25rem; display: block;">
+                            Минимум 6 символов
+                        </small>
                     </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" required minlength="6">
+                    
+                    <div class="form-group">
+                        <label class="form-label">Подтвердите пароль</label>
+                        <input type="password" class="form-control" id="confirmPassword" required>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Register</button>
+                    
+                    <button type="submit" class="btn-primary" style="width: 100%;">Создать аккаунт</button>
                 </form>
-                <p class="text-center mt-3">Already have an account? <a href="/login">Login</a></p>
+                
+                <div style="text-align: center; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                    <p style="color: var(--text-secondary);">
+                        Уже есть аккаунт? <a href="/login" style="color: var(--primary-color);">Войти</a>
+                    </p>
+                </div>
             </div>
         </div>
     </div>
-</div>
-<script>
-    // Validation
-    const form = document.querySelector('form');
-    form.addEventListener('submit', (e) => {
-        const username = document.getElementById('username').value;
-        const email = document.getElementById('email').value;
-        const pass = document.getElementById('password').value;
-        if (username.length < 3) {
+
+    <script>
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            alert('Username must be at least 3 characters');
-        }
-        if (!email.includes('@')) {
-            e.preventDefault();
-            alert('Invalid email');
-        }
-        if (pass.length < 6) {
-            e.preventDefault();
-            alert('Password must be at least 6 characters');
-        }
-    });
-</script>
-<%- include('footer') %>
+            
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.style.display = 'none';
+            
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (password !== confirmPassword) {
+                errorDiv.textContent = 'Пароли не совпадают';
+                errorDiv.style.display = 'flex';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    errorDiv.textContent = data.error || 'Ошибка регистрации';
+                    errorDiv.style.display = 'flex';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Ошибка соединения с сервером';
+                errorDiv.style.display = 'flex';
+            }
+        });
+    </script>
+</body>
+</html>

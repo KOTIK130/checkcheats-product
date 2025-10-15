@@ -1,903 +1,459 @@
-﻿// server.js - CheckCheats Anti-Cheat Server with MongoDB
-// Version 2.0.0 - Complete MongoDB Migration
-const express = require('express');
-const http = require('http');
-const path = require('path');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const { body, validationResult } = require('express-validator');
-const cookieParser = require('cookie-parser');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid');
-const { Server } = require('socket.io');
-const mongoose = require('mongoose');
-const winston = require('winston');
 require('dotenv').config();
-
-const User = require('./models/User');
-const Key = require('./models/Key');
-const Session = require('./models/Session');
-const ScanResult = require('./models/ScanResult');
-
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' }),
-    new winston.transports.Console({ format: winston.format.simple() })
-  ]
-});
+const express = require('express');
+const mongoose = require('mongoose');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const session = require('express-session');
+const helmet = require('helmet');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
-  pingInterval: 10000,
-  pingTimeout: 5000
-});
-
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-jwt-key-change-me';
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/checkcheats';
 
-mongoose.connect(MONGODB_URI, {
+// Database connection
+mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-})
-.then(() => logger.info('MongoDB connected successfully'))
-.catch(err => {
-  logger.error('MongoDB connection error:', err);
+}).then(() => {
+  console.log('✅ MongoDB connected successfully');
+}).catch(err => {
+  console.error('❌ MongoDB connection error:', err);
   process.exit(1);
 });
 
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: "*", credentials: true }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
+
+app.use(cors());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Слишком много запросов с этого IP, попробуйте позже.'
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per windowMs
+  message: 'Слишком много попыток входа, попробуйте позже.'
+});
+
+app.use('/api/', limiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+
+// Body parsing middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Session configuration
+app.use(session({
+  secret: process.env.JWT_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// View engine setup
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { error: 'Too many requests from this IP' },
-  standardHeaders: true,
-  legacyHeaders: false
-});
-app.use('/api/', limiter);
+// Static files
+app.use(express.static(path.join(__dirname, 'public')));
 
-const activeSessions = new Map();
+// Models
+const User = require('./models/User');
+const Key = require('./models/Key');
+const Product = require('./models/Product');
 
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1] || req.cookies.token;
-  if (!token) {
-    return res.status(401).json({ error: 'Access denied' });
+// Middleware to check authentication
+const isAuthenticated = (req, res, next) => {
+  if (req.session.userId) {
+    next();
+  } else {
+    res.redirect('/login');
   }
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid token' });
-    }
-    req.user = user;
-    next();
-  });
-}
+};
 
-function requireRole(role) {
-  return (req, res, next) => {
-    if (req.user.role !== role) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+const isAdmin = async (req, res, next) => {
+  if (!req.session.userId) {
+    return res.redirect('/login');
+  }
+  
+  try {
+    const user = await User.findById(req.session.userId);
+    if (user && user.group === 'Admin') {
+      next();
+    } else {
+      res.status(403).render('error', { message: 'Доступ запрещён' });
     }
-    next();
-  };
-}
+  } catch (error) {
+    res.status(500).render('error', { message: 'Ошибка сервера' });
+  }
+};
 
-io.on('connection', (socket) => {
-  logger.info('User connected: ' + socket.id);
-  
-  socket.on('join-session', async (data) => {
-    const { code, type, hwid } = data;
-    logger.info('Join attempt: code=' + code + ', type=' + type + ', socket=' + socket.id);
-    
-    if (!code || !type) {
-      socket.emit('error', { message: 'Invalid data' });
-      return;
-    }
-    
-    try {
-      const session = await Session.findOne({ 
-        code, 
-        expiresAt: { $gt: new Date() } 
-      });
-      
-      if (!session) {
-        socket.emit('error', { message: 'Session not found or expired' });
-        return;
-      }
-      
-      if (type === 'suspect') {
-        socket.join(code);
-        const sessionData = activeSessions.get(code) || {};
-        sessionData.suspectSocket = socket;
-        activeSessions.set(code, sessionData);
-        
-        session.status = 'active';
-        await session.save();
-        
-        socket.emit('session-joined', { role: 'suspect', code });
-        
-        if (sessionData.moderatorSocket) {
-          sessionData.moderatorSocket.emit('suspect-connected', { code });
-        }
-        
-        logger.info('Suspect joined: ' + code);
-      } 
-      else if (type === 'moderator') {
-        socket.join(code);
-        const sessionData = activeSessions.get(code) || {};
-        sessionData.moderatorSocket = socket;
-        activeSessions.set(code, sessionData);
-        
-        socket.emit('session-joined', { role: 'moderator', code });
-        
-        if (sessionData.suspectSocket) {
-          socket.emit('suspect-connected', { code });
-        }
-        
-        logger.info('Moderator joined: ' + code);
-      }
-    } catch (err) {
-      logger.error('Join session error:', err);
-      socket.emit('error', { message: 'Server error' });
-    }
-  });
-  
-  socket.on('request-scan', async (data) => {
-    const { code } = data;
-    const sessionData = activeSessions.get(code);
-    
-    if (!sessionData || !sessionData.suspectSocket) {
-      socket.emit('error', { message: 'Suspect not connected' });
-      return;
-    }
-    
-    try {
-      const session = await Session.findOne({ code });
-      if (session) {
-        session.status = 'scanning';
-        await session.save();
-      }
-      
-      sessionData.suspectSocket.emit('scan-request', { code });
-      logger.info('Scan requested for: ' + code);
-    } catch (err) {
-      logger.error('Request scan error:', err);
-    }
-  });
-  
-  socket.on('scan-results', async (data) => {
-    const { code, results } = data;
-    const sessionData = activeSessions.get(code);
-    
-    if (!sessionData) {
-      socket.emit('error', { message: 'Session not found' });
-      return;
-    }
-    
-    try {
-      const session = await Session.findOne({ code }).populate('moderatorId');
-      if (session) {
-        session.results = results;
-        session.status = 'completed';
-        await session.save();
-        
-        const scanResult = new ScanResult({
-          sessionCode: code,
-          moderatorId: session.moderatorId,
-          suspectId: session.suspectId,
-          results: results,
-          summary: {
-            totalProcesses: results.processes?.length || 0,
-            suspiciousProcesses: results.suspicious?.length || 0,
-            riskLevel: results.riskLevel || 'low'
-          }
-        });
-        await scanResult.save();
-        
-        if (sessionData.moderatorSocket) {
-          sessionData.moderatorSocket.emit('scan-results', { code, results });
-        }
-        
-        logger.info('Scan completed for: ' + code);
-      }
-    } catch (err) {
-      logger.error('Save scan results error:', err);
-    }
-  });
-  
-  socket.on('disconnect', () => {
-    logger.info('User disconnected: ' + socket.id);
-    
-    for (let [code, sessionData] of activeSessions.entries()) {
-      if (sessionData.moderatorSocket === socket || sessionData.suspectSocket === socket) {
-        if (sessionData.moderatorSocket === socket) {
-          sessionData.moderatorSocket = null;
-          if (sessionData.suspectSocket) {
-            sessionData.suspectSocket.emit('moderator-disconnected');
-          }
-        }
-        if (sessionData.suspectSocket === socket) {
-          sessionData.suspectSocket = null;
-          if (sessionData.moderatorSocket) {
-            sessionData.moderatorSocket.emit('suspect-disconnected');
-          }
-        }
-        
-        if (!sessionData.moderatorSocket && !sessionData.suspectSocket) {
-          activeSessions.delete(code);
-        }
-      }
-    }
-  });
-});
+// Routes
 
+// Home page
 app.get('/', (req, res) => {
-  const token = req.cookies.token;
-  let user = null;
-  if (token) {
-    try {
-      user = jwt.verify(token, JWT_SECRET);
-    } catch (err) {}
+  res.render('index', { user: req.session.user });
+});
+
+// Products page
+app.get('/products', async (req, res) => {
+  try {
+    const products = await Product.find({ isActive: true });
+    res.render('products', { user: req.session.user, products });
+  } catch (error) {
+    res.status(500).render('error', { message: 'Ошибка загрузки продуктов' });
   }
-  res.render('index', { user });
 });
 
-app.get('/register', (req, res) => {
-  res.render('register', { error: null, user: null });
-});
-
+// Login page
 app.get('/login', (req, res) => {
-  res.render('login', { error: null, user: null });
+  if (req.session.userId) {
+    return res.redirect('/dashboard');
+  }
+  res.render('login', { error: null });
 });
 
-app.get('/dashboard', authenticateToken, async (req, res) => {
+// Register page
+app.get('/register', (req, res) => {
+  if (req.session.userId) {
+    return res.redirect('/dashboard');
+  }
+  res.render('register', { error: null });
+});
+
+// Dashboard
+app.get('/dashboard', isAuthenticated, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId);
-    const sessions = await Session.find({ moderatorId: req.user.userId })
-      .sort({ createdAt: -1 })
-      .limit(10);
+    const user = await User.findById(req.session.userId).select('-password');
+    if (!user) {
+      req.session.destroy();
+      return res.redirect('/login');
+    }
     
-    res.render('dashboard', { user, sessions });
-  } catch (err) {
-    logger.error('Dashboard error:', err);
-    res.status(500).send('Server error');
+    res.render('dashboard', { user });
+  } catch (error) {
+    res.status(500).render('error', { message: 'Ошибка загрузки панели' });
   }
 });
 
-app.get('/products', (req, res) => {
-  const token = req.cookies.token;
-  let user = null;
-  if (token) {
-    try {
-      user = jwt.verify(token, JWT_SECRET);
-    } catch (err) {}
-  }
-  res.render('products', { user });
-});
-
-app.get('/change-password', authenticateToken, (req, res) => {
-  res.render('change-password', { error: null, user: req.user });
-});
-
-app.get('/logout', (req, res) => {
-  res.clearCookie('token');
-  res.redirect('/');
-});
-
-app.get('/admin', authenticateToken, requireRole('admin'), async (req, res) => {
+// Admin panel
+app.get('/admin', isAdmin, async (req, res) => {
   try {
-    const users = await User.find().select('-password').sort({ createdAt: -1 });
-    const totalSessions = await Session.countDocuments();
-    const activeSessionsCount = await Session.countDocuments({ 
-      status: { $in: ['pending', 'active', 'scanning'] } 
-    });
-    const totalScans = await ScanResult.countDocuments();
+    const stats = {
+      totalUsers: await User.countDocuments(),
+      totalKeys: await Key.countDocuments(),
+      activeKeys: await Key.countDocuments({ status: 'active' }),
+      usedKeys: await Key.countDocuments({ status: 'used' })
+    };
+    
+    const recentUsers = await User.find().sort({ createdAt: -1 }).limit(10).select('-password');
+    const recentKeys = await Key.find().sort({ createdAt: -1 }).limit(10).populate('createdBy usedBy', 'username');
     
     res.render('admin', { 
-      user: req.user, 
-      users, 
-      stats: { totalSessions, activeSessions: activeSessionsCount, totalScans } 
+      user: req.session.user, 
+      stats, 
+      recentUsers, 
+      recentKeys 
     });
-  } catch (err) {
-    logger.error('Admin panel error:', err);
-    res.status(500).send('Server error');
+  } catch (error) {
+    res.status(500).render('error', { message: 'Ошибка загрузки админ-панели' });
   }
 });
 
-app.post('/register', [
-  body('username').isLength({ min: 3 }).trim().escape(),
-  body('email').isEmail().normalizeEmail(),
-  body('password').isLength({ min: 6 })
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.render('register', { error: errors.array(), user: null });
-  }
-  
-  const { username, email, password } = req.body;
-  
+// API Routes
+
+// Register
+app.post('/api/auth/register', async (req, res) => {
   try {
-    const existingUser = await User.findOne({ 
-      $or: [{ username }, { email }] 
-    });
+    const { username, email, password } = req.body;
     
-    if (existingUser) {
-      return res.render('register', { 
-        error: [{ msg: 'Username or email already exists' }], 
-        user: null 
-      });
+    // Validation
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'Все поля обязательны' });
     }
     
-    const hashedPassword = await bcrypt.hash(password, 10);
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
+    }
+    
+    // Check if user exists
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Пользователь с таким email или логином уже существует' });
+    }
+    
+    // Create new user
     const user = new User({
       username,
       email,
-      password: hashedPassword
+      password
     });
     
     await user.save();
-    logger.info('User registered: ' + username);
     
-    const token = jwt.sign(
-      { userId: user._id, username: user.username, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    // Set session
+    req.session.userId = user._id;
+    req.session.user = {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      group: user.group
+    };
     
-    res.cookie('token', token, { 
-      httpOnly: true, 
-      maxAge: 7 * 24 * 60 * 60 * 1000 
-    });
-    
-    res.redirect('/dashboard');
-  } catch (err) {
-    logger.error('Registration error:', err);
-    res.render('register', { 
-      error: [{ msg: 'Server error' }], 
-      user: null 
-    });
+    res.json({ success: true, redirect: '/dashboard' });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Ошибка регистрации' });
   }
 });
 
-app.post('/login', [
-  body('username').trim().escape(),
-  body('password').notEmpty()
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.render('login', { error: errors.array(), user: null });
-  }
-  
-  const { username, password } = req.body;
-  
+// Login
+app.post('/api/auth/login', async (req, res) => {
   try {
-    const user = await User.findOne({ username });
+    const { username, password } = req.body;
     
-    if (!user) {
-      return res.render('login', { 
-        error: [{ msg: 'Invalid credentials' }], 
-        user: null 
-      });
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Введите логин и пароль' });
     }
     
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Find user by username or email
+    const user = await User.findOne({ 
+      $or: [{ username }, { email: username }] 
+    });
     
-    if (!isMatch) {
-      return res.render('login', { 
-        error: [{ msg: 'Invalid credentials' }], 
-        user: null 
-      });
+    if (!user || !(await user.comparePassword(password))) {
+      return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
     
+    if (user.isBanned) {
+      return res.status(403).json({ error: 'Ваш аккаунт заблокирован' });
+    }
+    
+    // Update last login
     user.lastLogin = new Date();
     await user.save();
     
-    const token = jwt.sign(
-      { userId: user._id, username: user.username, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    // Set session
+    req.session.userId = user._id;
+    req.session.user = {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      group: user.group
+    };
     
-    res.cookie('token', token, { 
-      httpOnly: true, 
-      maxAge: 7 * 24 * 60 * 60 * 1000 
-    });
-    
-    logger.info('User logged in: ' + username);
-    res.redirect('/dashboard');
-  } catch (err) {
-    logger.error('Login error:', err);
-    res.render('login', { 
-      error: [{ msg: 'Server error' }], 
-      user: null 
-    });
+    res.json({ success: true, redirect: '/dashboard' });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Ошибка входа' });
   }
 });
 
-app.post('/change-password', authenticateToken, [
-  body('oldPassword').notEmpty(),
-  body('newPassword').isLength({ min: 6 }),
-  body('confirmPassword').notEmpty()
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.render('change-password', { error: errors.array(), user: req.user });
-  }
-  
-  const { oldPassword, newPassword, confirmPassword } = req.body;
-  
-  if (newPassword !== confirmPassword) {
-    return res.render('change-password', { 
-      error: [{ msg: 'Passwords do not match' }], 
-      user: req.user 
-    });
-  }
-  
+// Logout
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Ошибка выхода' });
+    }
+    res.json({ success: true, redirect: '/' });
+  });
+});
+
+// Activate key
+app.post('/api/key/activate', isAuthenticated, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId);
+    const { key } = req.body;
     
-    if (!user) {
-      return res.render('change-password', { 
-        error: [{ msg: 'User not found' }], 
-        user: req.user 
-      });
+    if (!key) {
+      return res.status(400).json({ error: 'Введите ключ активации' });
     }
     
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
-    
-    if (!isMatch) {
-      return res.render('change-password', { 
-        error: [{ msg: 'Old password is incorrect' }], 
-        user: req.user 
-      });
-    }
-    
-    user.password = await bcrypt.hash(newPassword, 10);
-    await user.save();
-    
-    logger.info('Password changed for: ' + user.username);
-    res.redirect('/dashboard');
-  } catch (err) {
-    logger.error('Change password error:', err);
-    res.render('change-password', { 
-      error: [{ msg: 'Server error' }], 
-      user: req.user 
-    });
-  }
-});
-
-app.post('/api/create-session', authenticateToken, async (req, res) => {
-  const { suspectId } = req.body;
-  
-  if (!suspectId) {
-    return res.status(400).json({ error: 'Suspect ID required' });
-  }
-  
-  try {
-    const code = uuidv4().slice(0, 8).toUpperCase();
-    
-    const session = new Session({
-      code,
-      suspectId,
-      moderatorId: req.user.userId,
-      status: 'pending'
-    });
-    
-    await session.save();
-    
-    logger.info('Session created: ' + code + ' by ' + req.user.username);
-    res.json({ code, expiresAt: session.expiresAt });
-  } catch (err) {
-    logger.error('Create session error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.get('/api/session/:code', authenticateToken, async (req, res) => {
-  try {
-    const session = await Session.findOne({ code: req.params.code })
-      .populate('moderatorId', 'username email');
-    
-    if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
-    
-    res.json(session);
-  } catch (err) {
-    logger.error('Get session error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.get('/api/my-sessions', authenticateToken, async (req, res) => {
-  try {
-    const sessions = await Session.find({ moderatorId: req.user.userId })
-      .sort({ createdAt: -1 })
-      .limit(20);
-    
-    res.json(sessions);
-  } catch (err) {
-    logger.error('Get sessions error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.post('/api/secret-make-admin', async (req, res) => {
-  const { username, secret } = req.body;
-  
-  if (secret !== 'kotik-admin-2025') {
-    return res.status(403).json({ error: 'Invalid secret' });
-  }
-  
-  try {
-    const user = await User.findOne({ username });
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    user.role = 'admin';
-    await user.save();
-    
-    logger.info('User ' + username + ' promoted to admin');
-    res.json({ message: 'User promoted to admin', username });
-  } catch (err) {
-    logger.error('Make admin error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.post('/api/admin/delete-user/:id', authenticateToken, requireRole('admin'), async (req, res) => {
-  try {
-    await User.findByIdAndDelete(req.params.id);
-    logger.info('User deleted by admin: ' + req.params.id);
-    res.json({ message: 'User deleted' });
-  } catch (err) {
-    logger.error('Delete user error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.post('/api/admin/change-role/:id', authenticateToken, requireRole('admin'), async (req, res) => {
-  const { role } = req.body;
-  
-  if (!['user', 'moderator', 'admin'].includes(role)) {
-    return res.status(400).json({ error: 'Invalid role' });
-  }
-  
-  try {
-    const user = await User.findById(req.params.id);
-    user.role = role;
-    await user.save();
-    
-    logger.info('User role changed: ' + user.username + ' to ' + role);
-    res.json({ message: 'Role changed', user });
-  } catch (err) {
-    logger.error('Change role error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-
-// ==================== LICENSE KEY SYSTEM ====================
-
-// Generate new license key (Admin only)
-app.post('/api/admin/generate-key', authenticateToken, requireRole('admin'), async (req, res) => {
-  const { type, quantity } = req.body;
-  
-  if (!['30days', '90days', 'lifetime'].includes(type)) {
-    return res.status(400).json({ error: 'Invalid key type' });
-  }
-  
-  const qty = parseInt(quantity) || 1;
-  if (qty < 1 || qty > 100) {
-    return res.status(400).json({ error: 'Quantity must be between 1 and 100' });
-  }
-  
-  try {
-    const keys = [];
-    for (let i = 0; i < qty; i++) {
-      const keyString = 'CC-' + uuidv4().slice(0, 8).toUpperCase() + '-' + uuidv4().slice(0, 8).toUpperCase();
-      const key = new Key({
-        key: keyString,
-        type,
-        createdBy: req.user.userId
-      });
-      await key.save();
-      keys.push(keyString);
-    }
-    
-    logger.info('Generated ' + qty + ' keys of type ' + type + ' by admin ' + req.user.username);
-    res.json({ message: 'Keys generated successfully', keys, type });
-  } catch (err) {
-    logger.error('Generate key error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Activate license key
-app.post('/api/activate-key', authenticateToken, async (req, res) => {
-  const { key, hwid } = req.body;
-  
-  if (!key || !hwid) {
-    return res.status(400).json({ error: 'Key and HWID required' });
-  }
-  
-  try {
-    const licenseKey = await Key.findOne({ key: key.toUpperCase().trim() });
+    const licenseKey = await Key.findOne({ key: key.trim() });
     
     if (!licenseKey) {
-      return res.status(404).json({ error: 'Invalid key' });
+      return res.status(404).json({ error: 'Ключ не найден' });
     }
     
     if (licenseKey.status !== 'active') {
-      return res.status(400).json({ error: 'Key already used or expired' });
+      return res.status(400).json({ error: 'Ключ уже использован или недействителен' });
     }
     
-    const user = await User.findById(req.user.userId);
+    const user = await User.findById(req.session.userId);
     
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    // Activate key
+    const expirationDate = await licenseKey.activate(user._id);
     
-    // Generate UID if not exists
-    if (!user.uid) {
-      user.uid = 'UID-' + uuidv4().slice(0, 12).toUpperCase();
-    }
-    
-    // Set HWID
-    user.hwid = hwid;
-    user.subscriptionType = licenseKey.type;
-    
-    // Calculate expiration
-    if (licenseKey.type === 'lifetime') {
-      user.subscriptionExpires = new Date('2099-12-31');
-    } else if (licenseKey.type === '30days') {
-      user.subscriptionExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    } else if (licenseKey.type === '90days') {
-      user.subscriptionExpires = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-    }
-    
+    // Update user subscription
+    user.subscriptionExpires = expirationDate;
+    user.activatedKey = key;
     await user.save();
     
-    // Update key status
-    licenseKey.status = 'used';
-    licenseKey.usedBy = user._id;
-    licenseKey.usedAt = new Date();
-    await licenseKey.save();
-    
-    logger.info('Key activated: ' + key + ' by user ' + user.username);
     res.json({ 
-      message: 'Key activated successfully', 
-      uid: user.uid, 
-      subscriptionType: user.subscriptionType,
-      subscriptionExpires: user.subscriptionExpires
+      success: true, 
+      message: 'Ключ успешно активирован',
+      expiresAt: expirationDate
     });
-  } catch (err) {
-    logger.error('Activate key error:', err);
-    res.status(500).json({ error: 'Server error' });
+  } catch (error) {
+    console.error('Key activation error:', error);
+    res.status(500).json({ error: 'Ошибка активации ключа' });
   }
 });
 
-// Search user by UID (Admin/Moderator)
-app.get('/api/admin/search-uid/:uid', authenticateToken, async (req, res) => {
-  if (!['admin', 'moderator'].includes(req.user.role)) {
-    return res.status(403).json({ error: 'Insufficient permissions' });
-  }
-  
+// Download product (after key activation)
+app.get('/api/download', isAuthenticated, async (req, res) => {
   try {
-    const user = await User.findOne({ uid: req.params.uid.toUpperCase() })
-      .select('-password');
+    const user = await User.findById(req.session.userId);
     
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    if (!user.hasActiveSubscription()) {
+      return res.status(403).json({ error: 'Требуется активная подписка' });
     }
     
-    // Get user's sessions
-    const sessions = await Session.find({ moderatorId: user._id })
-      .sort({ createdAt: -1 })
-      .limit(10);
+    const product = await Product.findOne({ isActive: true });
     
-    res.json({ user, sessions });
-  } catch (err) {
-    logger.error('Search UID error:', err);
-    res.status(500).json({ error: 'Server error' });
+    if (!product) {
+      return res.status(404).json({ error: 'Продукт не найден' });
+    }
+    
+    // Generate download token
+    const downloadToken = require('crypto').randomBytes(32).toString('hex');
+    user.downloadToken = downloadToken;
+    await user.save();
+    
+    res.json({ 
+      success: true,
+      downloadUrl: `/api/download/${downloadToken}`,
+      product: {
+        name: product.name,
+        version: product.version
+      }
+    });
+  } catch (error) {
+    console.error('Download error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки' });
   }
 });
 
-// Reset HWID (Admin only)
-app.post('/api/admin/reset-hwid/:userId', authenticateToken, requireRole('admin'), async (req, res) => {
+// Admin API Routes
+
+// Generate key
+app.post('/api/admin/generate-key', isAdmin, async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId);
+    const { type } = req.body;
     
+    if (!type || !['30days', '90days', '180days', '365days', 'lifetime'].includes(type)) {
+      return res.status(400).json({ error: 'Неверный тип ключа' });
+    }
+    
+    const key = new Key({
+      key: Key.generateKey(),
+      type,
+      createdBy: req.session.userId
+    });
+    
+    await key.save();
+    
+    res.json({ 
+      success: true, 
+      key: key.key,
+      type: key.type
+    });
+  } catch (error) {
+    console.error('Key generation error:', error);
+    res.status(500).json({ error: 'Ошибка генерации ключа' });
+  }
+});
+
+// Grant subscription
+app.post('/api/admin/grant-subscription', isAdmin, async (req, res) => {
+  try {
+    const { userId, days } = req.body;
+    
+    const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+    
+    const expirationDate = new Date();
+    expirationDate.setDate(expirationDate.getDate() + parseInt(days));
+    
+    user.subscriptionExpires = expirationDate;
+    await user.save();
+    
+    res.json({ 
+      success: true, 
+      message: `Подписка выдана до ${expirationDate.toLocaleDateString()}`
+    });
+  } catch (error) {
+    console.error('Grant subscription error:', error);
+    res.status(500).json({ error: 'Ошибка выдачи подписки' });
+  }
+});
+
+// Reset HWID
+app.post('/api/admin/reset-hwid', isAdmin, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
     }
     
     user.hwid = null;
     await user.save();
     
-    logger.info('HWID reset for user ' + user.username + ' by admin ' + req.user.username);
-    res.json({ message: 'HWID reset successfully', user: { username: user.username, uid: user.uid } });
-  } catch (err) {
-    logger.error('Reset HWID error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.json({ success: true, message: 'HWID сброшен' });
+  } catch (error) {
+    console.error('Reset HWID error:', error);
+    res.status(500).json({ error: 'Ошибка сброса HWID' });
   }
 });
 
-// Get all keys (Admin only)
-app.get('/api/admin/keys', authenticateToken, requireRole('admin'), async (req, res) => {
+// Find user by UID
+app.get('/api/admin/find-user/:uid', isAdmin, async (req, res) => {
   try {
-    const keys = await Key.find()
-      .populate('usedBy', 'username email uid')
-      .populate('createdBy', 'username')
-      .sort({ createdAt: -1 })
-      .limit(100);
+    const { uid } = req.params;
     
-    res.json(keys);
-  } catch (err) {
-    logger.error('Get keys error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Delete key (Admin only)
-app.delete('/api/admin/key/:id', authenticateToken, requireRole('admin'), async (req, res) => {
-  try {
-    await Key.findByIdAndDelete(req.params.id);
-    logger.info('Key deleted by admin: ' + req.params.id);
-    res.json({ message: 'Key deleted successfully' });
-  } catch (err) {
-    logger.error('Delete key error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// ==================== END LICENSE KEY SYSTEM ====================
-
-// Aliases for dashboard compatibility
-// POST /api/license/activate (alias for /api/activate-key)
-app.post('/api/license/activate', authenticateToken, async (req, res) => {
-  const { key, hwid } = req.body;
-  
-  if (!key || !hwid) {
-    return res.status(400).json({ error: 'Key and HWID required' });
-  }
-  
-  try {
-    const licenseKey = await Key.findOne({ key: key.toUpperCase().trim() });
-    
-    if (!licenseKey) {
-      return res.status(404).json({ error: 'Invalid key' });
-    }
-    
-    if (licenseKey.status !== 'active') {
-      return res.status(400).json({ error: 'Key already used or expired' });
-    }
-    
-    const user = await User.findById(req.user.userId);
-    
+    const user = await User.findOne({ uid }).select('-password');
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'Пользователь не найден' });
     }
     
-    // Generate UID if not exists
-    if (!user.uid) {
-      user.uid = 'UID-' + uuidv4().slice(0, 12).toUpperCase();
-    }
-    
-    // Set HWID
-    user.hwid = hwid;
-    user.subscriptionType = licenseKey.type;
-    
-    // Calculate expiration
-    if (licenseKey.type === 'lifetime') {
-      user.subscriptionExpires = new Date('2099-12-31');
-    } else if (licenseKey.type === '30days') {
-      user.subscriptionExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    } else if (licenseKey.type === '90days') {
-      user.subscriptionExpires = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-    }
-    
-    await user.save();
-    
-    // Update key status
-    licenseKey.status = 'used';
-    licenseKey.usedBy = user._id;
-    licenseKey.usedAt = new Date();
-    await licenseKey.save();
-    
-    logger.info('Key activated: ' + key + ' by user ' + user.username);
-    res.json({ 
-      message: 'Key activated successfully', 
-      uid: user.uid, 
-      subscriptionType: user.subscriptionType,
-      subscriptionExpires: user.subscriptionExpires
-    });
-  } catch (err) {
-    logger.error('Activate key error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.json({ success: true, user });
+  } catch (error) {
+    console.error('Find user error:', error);
+    res.status(500).json({ error: 'Ошибка поиска пользователя' });
   }
 });
 
-// POST /api/sessions/create (alias for /api/create-session)
-app.post('/api/sessions/create', authenticateToken, async (req, res) => {
-  const { suspectId } = req.body;
-  
-  if (!suspectId) {
-    return res.status(400).json({ error: 'Suspect ID required' });
-  }
-  
-  try {
-    const code = uuidv4().slice(0, 8).toUpperCase();
-    
-    const session = new Session({
-      code,
-      suspectId,
-      moderatorId: req.user.userId,
-      status: 'pending'
-    });
-    
-    await session.save();
-    
-    logger.info('Session created: ' + code + ' by ' + req.user.username);
-    res.json({ code, expiresAt: session.expiresAt });
-  } catch (err) {
-    logger.error('Create session error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
+// Error handler
 app.use((req, res) => {
-  res.status(404).render('404', { user: req.user || null });
+  res.status(404).render('error', { message: 'Страница не найдена' });
 });
 
-app.use((err, req, res, next) => {
-  logger.error('Server error:', err);
-  res.status(500).send('Internal Server Error');
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
-
-setInterval(async () => {
-  try {
-    logger.info('Cleanup job running');
-  } catch (err) {
-    logger.error('Cleanup error:', err);
-  }
-}, 5 * 60 * 1000);
-
-server.listen(PORT, () => {
-  logger.info('CheckCheats Server running on port ' + PORT);
-  logger.info('Database: MongoDB');
-});
-
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, closing server');
-  await mongoose.connection.close();
-  server.close(() => {
-    logger.info('Server closed');
-    process.exit(0);
-  });
-});
-
-module.exports = { app, server, io, mongoose, logger };
-
-
